@@ -58,7 +58,7 @@ test('several servers: touch picker; tapping one selects it and shows home', asy
   const d = doc(r);
   assert.equal(d.token, 'servers');
   const seq = findAll(d.document, (n) => n.type === 'Sequence')[0];
-  assert.deepEqual(seq.data.map((x) => x.name), ['Basement', 'Cabin', 'Lake House', 'Studio', 'Garage']);
+  assert.deepEqual(seq.data.map((x) => x.name), ['Basement', 'Cabin', 'Garage', 'Lake House', 'Studio'], 'owned first, then A–Z');
   assert.equal(seq.data[0].caption, 'Your server');
   assert.equal(seq.data[1].caption, 'Shared with you');
   assert.deepEqual(findAll(seq, (n) => n.type === 'TouchWrapper')[0].onPress[0].arguments, ['server', 'select', '${data.id}']);

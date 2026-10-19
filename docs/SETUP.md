@@ -3,7 +3,7 @@
 These steps put Complexity on your own Echo devices in the Development stage.
 No certification is needed.
 
-The skill The skill runs on Alexa-hosted's **nodejs16.x** runtime.
+The skill runs on Alexa-hosted's **nodejs16.x** runtime.
 
 ## 1. ASK CLI
 
