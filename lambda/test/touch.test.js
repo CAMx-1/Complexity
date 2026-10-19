@@ -50,7 +50,7 @@ test('ready: home screen with logo, hints and tappable Continue Watching (no bla
 });
 
 test('several servers: touch picker; tapping one selects it and shows home', async () => {
-  const many = ['Basement', 'Cabin', 'Krazzy', 'Rayflix', 'W11'].map((n, i) => server(n, `s${i}x`, { owned: i === 0 }));
+  const many = ['Basement', 'Cabin', 'Lake House', 'Studio', 'Garage'].map((n, i) => server(n, `s${i}x`, { owned: i === 0 }));
   const { send, store, plex } = setup(many);
   await send({ type: 'LaunchRequest' });
   plex.link();
@@ -58,23 +58,23 @@ test('several servers: touch picker; tapping one selects it and shows home', asy
   const d = doc(r);
   assert.equal(d.token, 'servers');
   const seq = findAll(d.document, (n) => n.type === 'Sequence')[0];
-  assert.deepEqual(seq.data.map((x) => x.name), ['Basement', 'Cabin', 'Krazzy', 'Rayflix', 'W11']);
+  assert.deepEqual(seq.data.map((x) => x.name), ['Basement', 'Cabin', 'Lake House', 'Studio', 'Garage']);
   assert.equal(seq.data[0].caption, 'Your server');
   assert.equal(seq.data[1].caption, 'Shared with you');
   assert.deepEqual(findAll(seq, (n) => n.type === 'TouchWrapper')[0].onPress[0].arguments, ['server', 'select', '${data.id}']);
   assert.match(ssml(r), /found 5 Plex servers\. Tap the one to use/);
 
   const picked = await send(tap('server', 'select', 's2x'));
-  assert.equal((await store.get(USER)).server.name, 'Krazzy');
+  assert.equal((await store.get(USER)).server.name, 'Lake House');
   assert.equal(doc(picked).token, 'home');
-  assert.match(ssml(picked), /Connected to Krazzy/);
+  assert.match(ssml(picked), /Connected to Lake House/);
   const switchBtn = findAll(doc(picked).document, (n) => n.type === 'TouchWrapper' && JSON.stringify(n).includes('Switch server'));
   assert.equal(switchBtn.length, 1, 'switch button shown when there are several servers');
   assert.deepEqual(switchBtn[0].onPress[0].arguments, ['home', 'servers']);
 
   const picker = await send(tap('home', 'servers'));
   const cur = findAll(doc(picker).document, (n) => n.type === 'Sequence')[0].data.find((x) => x.current);
-  assert.equal(cur.name, 'Krazzy', 'current server highlighted');
+  assert.equal(cur.name, 'Lake House', 'current server highlighted');
 });
 
 test('tapping a Continue Watching tile starts loading that item', async () => {

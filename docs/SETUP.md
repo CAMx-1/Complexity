@@ -3,8 +3,7 @@
 These steps put Complexity on your own Echo devices in the Development stage.
 No certification is needed.
 
-Current skill: `amzn1.ask.skill.9dd8cd52-c96b-421f-9c05-d33f7985e033`
-(development stage). The skill runs on Alexa-hosted's **nodejs16.x** runtime.
+The skill The skill runs on Alexa-hosted's **nodejs16.x** runtime.
 
 ## 1. ASK CLI
 
