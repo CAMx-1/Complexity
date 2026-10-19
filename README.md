@@ -5,7 +5,7 @@ voice and touch. It's built first for the Echo Show 11 and replaces the
 official Plex skill, which was shut down on June 15, 2026. It is video only;
 for music, use an existing Plex music skill.
 
-Status: in development. Running on Echo Show in the Development stage, with Plex sign-in, video playback, a loading screen, and touch home and server screens. Say "Alexa, open complexity player". See [docs/PLAN.md](docs/PLAN.md) and [docs/SETUP.md](docs/SETUP.md).
+Status: in development. Running on Echo Show in the Development stage, with Plex sign-in, video playback, a loading screen, and touch home and server screens. Say "Alexa, open complexity player".
 
 Not affiliated with or endorsed by Plex, Inc. or Amazon.
 
