@@ -21,6 +21,12 @@ const PLAYER_ID = 'player';
 const ROOT_ID = 'root';
 const PROGRESS_SECONDS = 20;
 
+// How long the screen (and the skill session) may stay up without touch or
+// voice. The device default is about 30 s: on an Echo Show 11, playback was
+// cut off 30-50 s in with SessionEndedRequest USER_INITIATED. Long enough for
+// a feature film; the skill still ends the session at the end of a title.
+const IDLE_TIMEOUT_MS = 4 * 3600 * 1000;
+
 const send = (...args) => ({ type: 'SendEvent', arguments: ['video', ...args] });
 const media = (command, extra = {}) => ({ type: 'ControlMedia', componentId: PLAYER_ID, command, ...extra });
 
@@ -41,6 +47,7 @@ function playerDocument({ url, title, subtitle = '', offsetMs = 0 }) {
     type: 'APL',
     version: APL_VERSION,
     theme: 'dark',
+    settings: { idleTimeout: IDLE_TIMEOUT_MS },
     mainTemplate: {
       parameters: [],
       items: [{
@@ -133,4 +140,4 @@ function controlDirective(command, extra = {}) {
   return { type: 'Alexa.Presentation.APL.ExecuteCommands', token: TOKEN, commands: [media(command, extra)] };
 }
 
-module.exports = { TOKEN, PLAYER_ID, PROGRESS_SECONDS, playerDocument, controlDirective };
+module.exports = { TOKEN, PLAYER_ID, PROGRESS_SECONDS, IDLE_TIMEOUT_MS, playerDocument, controlDirective };

@@ -24,6 +24,7 @@ function loadingDocument({ title, subtitle = '', posterUrl, artUrl, pct = 3, lab
     type: 'APL',
     version: APL_VERSION,
     theme: 'dark',
+    settings: { idleTimeout: 180_000 }, // the warm-up may take up to 90 s; default is ~30 s
     onMount: nextTick(FIRST_TICK_MS),
     mainTemplate: {
       parameters: [],

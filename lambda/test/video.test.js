@@ -331,3 +331,10 @@ test('resume is a one-time relative seek on the first onPlay', async () => {
   assert.deepEqual(v.onPlay[1], { type: 'SetValue', componentId: 'root', property: 'resumeAt', value: 0 }, 'only once');
   assert.equal(startOffset(r), 3_600_000);
 });
+
+test('player and loading screens set a long idleTimeout (device default cut playback at ~30 s)', () => {
+  const p = require('../src/apl/player').playerDocument({ url: 'u', title: 't' });
+  assert.ok(p.settings.idleTimeout >= 3 * 3600 * 1000);
+  const l = require('../src/apl/loading').loadingDocument({ title: 't' });
+  assert.ok(l.settings.idleTimeout >= 120_000);
+});
