@@ -89,8 +89,9 @@ function fakePlex({ servers = [], reachable = new Set(), username = 'cam', libra
     }
     // Fake PMS library and playback endpoints (shared library for all servers).
     const lib = state.library;
-    const authed = !!h['X-Plex-Token'];
-    if (!authed && u.pathname !== '/identity') return json(401, {});
+    // Like real PMS (1.42): legacy tokens only; JWTs get 401.
+    const authed = !!h['X-Plex-Token'] && !String(h['X-Plex-Token']).startsWith('eyJ');
+    if (!authed) return json(401, {});
     if (u.pathname === '/hubs/search') {
       const q = (u.searchParams.get('query') || '').toLowerCase();
       const hit = (t) => t.toLowerCase().includes(q);

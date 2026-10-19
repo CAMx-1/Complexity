@@ -87,7 +87,10 @@ async function startOrResume(h) {
   const r = rec(h);
   let st = link.status(r);
   if (st === STATUS.UNLINKED) {
+    const relink = r.relinkReason === 'token-upgrade';
+    delete r.relinkReason;
     await link.startLink(fetchOf(h), r);
+    if (relink) return respondForStatus(h, STATUS.LINKING, { prefix: 'I need you to link Plex once more, so I can talk to your server. ' });
     st = STATUS.LINKING;
   } else if (st === STATUS.LINKING) {
     st = await link.pollLink(fetchOf(h), r); // maybe they already entered it

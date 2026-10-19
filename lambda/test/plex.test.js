@@ -22,24 +22,33 @@ test('device JWT is EdDSA-signed with plex.tv claims and the kid', () => {
   assert.equal(d.publicJwk.d, undefined, 'private part never in the JWK');
 });
 
-test('PIN flow: pending, then a JWT once linked; refresh via nonce', async () => {
+test('PIN flow (default): no JWK sent, legacy token that PMS accepts', async () => {
   const plex = fakePlex();
   const d = createDevice();
   const pin = await auth.createPin(plex.fetchImpl, d);
   assert.match(pin.code, /^[A-Z0-9]{4}$/);
   const created = plex.calls.find((c) => c.path === '/api/v2/pins');
-  assert.equal(created.body.strong, false);
-  assert.equal(created.body.jwk.x, d.publicJwk.x);
+  assert.deepEqual(created.body, { strong: false }, 'no jwk: PMS only accepts legacy tokens');
   assert.equal(created.headers['X-Plex-Product'], 'Complexity');
-
   assert.deepEqual(await auth.checkPin(plex.fetchImpl, d, pin), { status: 'pending' });
   plex.link();
   const linked = await auth.checkPin(plex.fetchImpl, d, pin);
   assert.equal(linked.status, 'linked');
+  assert.equal(linked.token.type, 'legacy');
+  assert.equal(auth.needsRefresh(linked.token), false);
+  const poll = plex.calls.filter((c) => /\/api\/v2\/pins\/\d+/.test(c.path)).at(-1);
+  assert.ok(!poll.url.includes('deviceJWT'));
+});
+
+test('PIN flow (JWT opt-in): JWK + signed deviceJWT, then nonce refresh', async () => {
+  const plex = fakePlex();
+  const d = createDevice();
+  const pin = await auth.createPin(plex.fetchImpl, d, { jwt: true });
+  assert.equal(plex.calls.find((c) => c.path === '/api/v2/pins').body.jwk.x, d.publicJwk.x);
+  plex.link();
+  const linked = await auth.checkPin(plex.fetchImpl, d, pin, Date.now(), { jwt: true });
   assert.equal(linked.token.type, 'jwt', 'deviceJWT accepted, so Plex issues a JWT');
   assert.ok(linked.token.expiresAt > Date.now() + 6 * 86400_000);
-
-  assert.equal(auth.needsRefresh(linked.token), false);
   assert.equal(auth.needsRefresh(linked.token, linked.token.expiresAt - 3600_000), true);
   const fresh = await auth.refreshToken(plex.fetchImpl, d);
   assert.equal(fresh.type, 'jwt');

@@ -110,6 +110,8 @@ async function selectServer(fetchImpl, rec, choice, list) {
  */
 async function ensureFreshToken(fetchImpl, rec, now = Date.now()) {
   if (!rec.token) return false;
+  // Links made while JWT was on hold a token PMS rejects: relink once.
+  if (rec.token.type === 'jwt' && !auth.USE_JWT) { unlink(rec); rec.relinkReason = 'token-upgrade'; return false; }
   if (!auth.needsRefresh(rec.token, now)) return true;
   try {
     rec.token = await auth.refreshToken(fetchImpl, rec.device, now);

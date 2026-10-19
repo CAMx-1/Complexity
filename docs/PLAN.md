@@ -224,6 +224,13 @@ player").
 Tests (`npm test` in `lambda/`) run against a fake plex.tv that verifies
 the device JWT signatures.
 
+**JWT sign-in is off for now (2026-10-19).** Plex Media Server 1.42.2 rejects
+JWTs (HTTP 401). With a JWT, `/api/v2/resources` also hands back JWT server
+tokens, which PMS rejects too. So the PIN is created without a `jwk`, and
+plex.tv issues a legacy token, which works with plex.tv and PMS alike. The JWT
+code stays in place behind `USE_JWT` in `lambda/src/plex/auth.js`, with tests.
+Links made while JWT was on are asked to relink once.
+
 The JWT field names come from the community OpenAPI spec
 (LukeHagar/plex-api-spec) and the Plex developer forum, because
 developer.plex.tv renders client-side. The refresh `scope` value is a best

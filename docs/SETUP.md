@@ -103,7 +103,7 @@ Data is stored per Amazon account, in the skill's DynamoDB table. AWS encrypts
 it at rest.
 
 - A random Plex client ID and an Ed25519 device key.
-- The Plex token: a JWT, refreshed about weekly through the nonce flow.
+- The Plex token: a legacy token, because PMS doesn't accept Plex's newer JWTs yet.
 - The selected server and its connection URIs.
 
 All of it is deleted when you say "unlink Plex" or disable the skill. You can

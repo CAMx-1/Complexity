@@ -5,6 +5,13 @@
 //   3. checkPin()    GET /api/v2/pins/{id}?deviceJWT=… -> authToken (JWT, ~7 days)
 //   4. refreshToken() nonce flow: GET /auth/nonce, sign, POST /auth/token
 // If Plex falls back to a legacy (non-JWT) token, it is long-lived and needs no refresh.
+//
+// JWT is OFF by default: Plex Media Server (verified on 1.42.2, Oct 2026) only
+// accepts legacy tokens, and /api/v2/resources hands back JWT server tokens
+// when called with a JWT, which PMS also rejects (HTTP 401). Without a `jwk` on
+// the PIN, plex.tv issues a legacy token that works everywhere. Flip USE_JWT
+// once PMS supports JWTs.
+const USE_JWT = false;
 
 const { PLEX_TV, plexRequest } = require('./client');
 const { signDeviceJwt, decodeJwtPayload } = require('./deviceKey');
@@ -14,11 +21,11 @@ const { signDeviceJwt, decodeJwtPayload } = require('./deviceKey');
 const TOKEN_SCOPE = 'username,email,friendly_name,admin,shared_user';
 const REFRESH_MARGIN_MS = 24 * 3600 * 1000; // refresh when <1 day left
 
-async function createPin(fetchImpl, device) {
+async function createPin(fetchImpl, device, { jwt = USE_JWT } = {}) {
   const pin = await plexRequest(fetchImpl, `${PLEX_TV}/api/v2/pins`, {
     method: 'POST',
     clientId: device.clientId,
-    body: { strong: false, jwk: device.publicJwk },
+    body: jwt ? { strong: false, jwk: device.publicJwk } : { strong: false },
   });
   if (!pin || !pin.id || !pin.code) throw new Error('Plex did not return a PIN');
   const expiresAt = pin.expiresAt ? Date.parse(pin.expiresAt) : Date.now() + (pin.expiresIn || 900) * 1000;
@@ -26,12 +33,12 @@ async function createPin(fetchImpl, device) {
 }
 
 /** Returns { status: 'pending' | 'linked' | 'expired', token? }. */
-async function checkPin(fetchImpl, device, pin, now = Date.now()) {
+async function checkPin(fetchImpl, device, pin, now = Date.now(), { jwt = USE_JWT } = {}) {
   if (now >= pin.expiresAt) return { status: 'expired' };
-  const deviceJWT = signDeviceJwt(device, {}, { now });
+  const query = jwt ? `?deviceJWT=${encodeURIComponent(signDeviceJwt(device, {}, { now }))}` : '';
   let res;
   try {
-    res = await plexRequest(fetchImpl, `${PLEX_TV}/api/v2/pins/${encodeURIComponent(pin.id)}?deviceJWT=${encodeURIComponent(deviceJWT)}`, { clientId: device.clientId });
+    res = await plexRequest(fetchImpl, `${PLEX_TV}/api/v2/pins/${encodeURIComponent(pin.id)}${query}`, { clientId: device.clientId });
   } catch (e) {
     if (e.status === 404) return { status: 'expired' };
     throw e;
@@ -72,4 +79,4 @@ async function getAccount(fetchImpl, device, tokenValue) {
   return { username: u.username || u.title || u.friendlyName || 'your account', uuid: u.uuid };
 }
 
-module.exports = { createPin, checkPin, describeToken, needsRefresh, refreshToken, getAccount, TOKEN_SCOPE };
+module.exports = { USE_JWT, createPin, checkPin, describeToken, needsRefresh, refreshToken, getAccount, TOKEN_SCOPE };

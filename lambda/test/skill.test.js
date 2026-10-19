@@ -84,7 +84,7 @@ test('screen polling is silent while pending, then completes the link (single se
   assert.match(ssml(done), /linked as cam/);
   assert.match(ssml(done), /Basement/);
   const rec = await store.get(USER);
-  assert.equal(rec.token.type, 'jwt');
+  assert.equal(rec.token.type, 'legacy', 'PMS only accepts legacy tokens');
   assert.equal(rec.pin, null);
   assert.equal(rec.server.name, 'Basement');
   assert.equal(rec.server.accessToken, 'srv-token-bbb');
@@ -140,26 +140,32 @@ test('unreachable server explains Remote Access', async () => {
   assert.equal(r.shouldEndSession, true);
 });
 
-test('expired JWT is refreshed on launch; a revoked device relinks', async () => {
+test('a JWT link from an earlier build triggers one relink with an explanation', async () => {
   const { send, store, plex } = setup({ servers: [server('Basement', 'bbb')], reachable: new Set(['https://203-0-113-9.bbb.plex.direct:32400']) });
   await send(launch());
   plex.link();
   await send(poll());
-
   const rec = await store.get(USER);
-  rec.token.expiresAt = Date.now() + 1000; // about to expire
+  rec.token = { value: 'eyJhbGciOi.old.jwt', type: 'jwt', expiresAt: Date.now() + 5 * 86400_000 };
   await store.put(USER, rec);
+
+  const r = await send(launch());
+  assert.match(ssml(r), /link Plex once more/);
+  assert.match(ssml(r), /plex\.tv\/link/);
+  const after = await store.get(USER);
+  assert.equal(after.token, undefined);
+  assert.ok(after.pin, 'new PIN issued');
+  assert.equal(after.relinkReason, undefined);
+});
+
+test('legacy tokens are never refreshed on launch', async () => {
+  const { send, plex } = setup({ servers: [server('Basement', 'bbb')], reachable: new Set(['https://203-0-113-9.bbb.plex.direct:32400']) });
+  await send(launch());
+  plex.link();
+  await send(poll());
   const r = await send(launch());
   assert.match(ssml(r), /Connected to Basement/);
-  assert.ok((await store.get(USER)).token.expiresAt > Date.now() + 6 * 86400_000, 'refreshed');
-  assert.ok(plex.calls.some((c) => c.path === '/api/v2/auth/token'));
-
-  const rec2 = await store.get(USER);
-  rec2.token.expiresAt = Date.now() + 1000;
-  await store.put(USER, rec2);
-  plex.state.refreshFails = true;
-  const relink = await send(launch());
-  assert.match(ssml(relink), /plex\.tv\/link/, 'starts a fresh link');
+  assert.ok(!plex.calls.some((c) => c.path === '/api/v2/auth/token'));
 });
 
 test('unlink needs confirmation, then deletes the record', async () => {
