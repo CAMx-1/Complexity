@@ -40,7 +40,9 @@ async function plexRequest(fetchImpl, url, { method = 'GET', clientId, token, bo
     method,
     headers,
     body: body === undefined ? undefined : JSON.stringify(body),
-    signal: AbortSignal.timeout(timeoutMs),
+    // Native fetch uses the signal; the Node 16 fallback (src/http.js) uses timeoutMs.
+    signal: typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(timeoutMs) : undefined,
+    timeoutMs,
   });
   const text = await res.text();
   let data = null;

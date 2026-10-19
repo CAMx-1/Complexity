@@ -6,7 +6,7 @@ const assert = require('node:assert/strict');
 
 const { buildSkill } = require('../index');
 const { memoryStore } = require('../src/store');
-const { fakePlex, server } = require('./fakePlex');
+const { fakePlex, server } = require('../testing/fakePlex');
 
 const USER = 'amzn1.ask.account.TEST';
 

@@ -25,7 +25,11 @@ function fakePlex({ servers = [], reachable = new Set(), username = 'cam' } = {}
   let nextPin = 1000;
   const state = { linkAs: null, refreshFails: false };
 
-  const json = (status, body) => new Response(body === undefined ? '' : JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+  // Minimal fetch Response (Node 16 has no global Response).
+  const json = (status, body) => {
+    const text = body === undefined ? '' : JSON.stringify(body);
+    return { ok: status >= 200 && status < 300, status, text: async () => text };
+  };
 
   async function fetchImpl(url, opts = {}) {
     const u = new URL(url);

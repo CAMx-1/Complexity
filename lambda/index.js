@@ -4,15 +4,14 @@
 const Alexa = require('ask-sdk-core');
 const { requestHandlers, ErrorHandler } = require('./src/handlers');
 const { storeFromEnv } = require('./src/store');
+const { defaultFetch } = require('./src/http');
 
 /**
  * Build the skill. `store` and `fetchImpl` are injectable for tests.
  * `skillId` pins requests to this skill when set (SKILL_ID env, or the value
  * from skill-package once the skill exists).
  */
-function buildSkill({ store = storeFromEnv(), fetchImpl = globalThis.fetch, skillId = process.env.SKILL_ID } = {}) {
-  if (typeof fetchImpl !== 'function') throw new Error('Global fetch is unavailable; the skill needs Node.js 18 or newer');
-
+function buildSkill({ store = storeFromEnv(), fetchImpl = defaultFetch, skillId = process.env.SKILL_ID } = {}) {
   const LoadRecord = {
     async process(h) {
       const userId = Alexa.getUserId(h.requestEnvelope);

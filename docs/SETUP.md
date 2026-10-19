@@ -3,51 +3,68 @@
 These steps put Complexity on your own Echo devices in the Development stage.
 No certification is needed.
 
+Current skill: `amzn1.ask.skill.9dd8cd52-c96b-421f-9c05-d33f7985e033`
+(development stage). The skill runs on Alexa-hosted's **nodejs16.x** runtime.
+
 ## 1. ASK CLI
 
 ```sh
 npm i -g ask-cli@2.30.7
-ask configure        # opens a browser; sign in with your Amazon Developer account
+ask configure        # sign in with your Amazon Developer account
 ```
 
 Use the same Amazon account your Echo Show is registered to.
 
 ## 2. Create the Alexa-hosted skill (one time)
 
-```sh
-cd ~/Documents
-ask new
-#   Choose a modeling stack: Interaction Model
-#   Runtime: Node.js
-#   Hosting: Alexa-hosted skills
-#   Locale: en-US · Region: US East (N. Virginia)
-#   Skill name: Complexity · Template: Hello World (it gets replaced)
-```
+Create the skill in the Developer Console. `ask new` can fail when its
+sign-in captcha won't load.
 
-This creates a folder that is a git clone of the skill's hosted repository
-(AWS CodeCommit). Note its remote URL and `ask-resources.json`, then point this
-repo at it:
+Developer Console → Create Skill:
+- Name: Complexity
+- Type: Other → Custom
+- Hosting: Alexa-hosted (Node.js), US East (N. Virginia)
+- Template: Start from scratch
+
+Then link this repo to the skill:
 
 ```sh
-cd ~/Documents/Complexity
-cp ../Complexity-hosted/ask-resources.json .
-cp -R ../Complexity-hosted/.ask .            # skill ID lives here (gitignored)
-git remote add alexa "$(git -C ../Complexity-hosted remote get-url origin)"
+# ask-resources.json is committed; .ask/ask-states.json holds the skill ID (gitignored)
+mkdir -p .ask && cat > .ask/ask-states.json <<'EOF'
+{ "askcliStatesVersion": "2020-03-31",
+  "profiles": { "default": { "skillId": "<skill id>",
+    "skillInfrastructure": { "@ask-cli/hosted-skill-deployer": { "deployState": {} } } } } }
+EOF
+ask smapi get-alexa-hosted-skill-metadata -s <skill id>     # prints the CodeCommit URL
+git remote add alexa <CodeCommit URL>
+git config "credential.<CodeCommit URL>.helper" '!ask util git-credentials-helper'
+git fetch alexa
 ```
 
 ## 3. Deploy
 
-Alexa-hosted skills deploy on push. `master` goes to the Development stage:
+**Manifest and voice model** go through SMAPI. `skill.json` already has the
+hosted Lambda endpoints and the SKILL_DISABLED subscription.
 
 ```sh
-git push alexa main:master
+S=<skill id>
+ask smapi update-skill-manifest -s $S -g development --manifest file:skill-package/skill.json
+ask smapi set-interaction-model -s $S -g development -l en-US \
+  --interaction-model file:skill-package/interactionModels/custom/en-US.json
+ask smapi get-skill-status -s $S     # wait for SUCCEEDED
 ```
 
-The hosted build runs `npm install` in `lambda/` and deploys `lambda/index.js`.
-The interaction model in `skill-package/` is built on the same push.
+**Code** goes by git push to the hosted repo's `master` branch, which deploys
+to Development. That repo has its own history (the template's initial
+commit), so we push a commit containing this repo's tree on top of it. That
+keeps the push a fast-forward:
 
-Check: Developer Console → Complexity → Code tab shows the new files;
-Build tab shows the model built.
+```sh
+npm run deploy:code     # from lambda/, see scripts/deploy-code.sh
+```
+
+Don't use `ask deploy` here. For hosted skills it pushes to the `origin`
+remote, which in this repo is GitHub.
 
 ## 4. Enable testing and try it
 
@@ -60,24 +77,6 @@ signed in to the Plex account that owns or shares the server. The screen
 updates within about 5 seconds.
 
 Then try: "Alexa, ask complexity which server am I using".
-
-## 5. Subscribe to SkillDisabled (one time)
-
-The code already deletes stored data on `AlexaSkillEvent.SkillDisabled`. Alexa
-only sends that event once the manifest subscribes to it, and the subscription
-needs the hosted Lambda ARN. That ARN only exists after step 2, so the
-subscription isn't in `skill.json` yet.
-
-1. Find the ARN with `ask smapi get-skill-manifest -s <skillId>` (look at
-   `apis.custom.endpoint.uri`).
-2. Add this block to `manifest` in `skill-package/skill.json`, then push:
-
-```json
-"events": {
-  "endpoint": { "uri": "<hosted lambda ARN>" },
-  "subscriptions": [{ "eventName": "SKILL_DISABLED" }]
-}
-```
 
 ## Requirements on the Plex side
 
@@ -92,6 +91,7 @@ subscription isn't in `skill.json` yet.
 cd lambda
 npm install
 npm test     # unit and end-to-end handler tests against a fake plex.tv
+npx -y -p node@16.20.2 node --test test/plex.test.js test/skill.test.js test/http.test.js   # hosted runtime version
 ```
 
 ## Data stored

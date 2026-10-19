@@ -169,8 +169,9 @@ lambda/test/        unit tests with recorded Plex and Alexa request fixtures
 docs/               this plan, setup guide
 ```
 
-Stack: plain Node.js (CommonJS, Node 18+), `ask-sdk-core`, AWS SDK v3 for
-DynamoDB, and `node:test`. Alexa-hosted runs `npm install` with no build
+Stack: plain Node.js (CommonJS), `ask-sdk-core` and `node:test`. Alexa-hosted
+runs nodejs16.x, so `src/http.js` stands in for fetch, and the store uses the
+AWS SDK v2 bundled with that runtime (or v3 where it exists). Alexa-hosted runs `npm install` with no build
 step, so there is no TypeScript.
 
 ## Security notes

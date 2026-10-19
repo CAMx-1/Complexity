@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const { createDevice, signDeviceJwt, decodeJwtPayload } = require('../src/plex/deviceKey');
 const auth = require('../src/plex/auth');
 const servers = require('../src/plex/servers');
-const { fakePlex, server, verifyJwt } = require('./fakePlex');
+const { fakePlex, server, verifyJwt } = require('../testing/fakePlex');
 
 test('device JWT is EdDSA-signed with plex.tv claims and the kid', () => {
   const d = createDevice();

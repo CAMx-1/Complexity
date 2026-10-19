@@ -5,14 +5,13 @@
   "description": "Alexa skill backend for Complexity (Alexa-hosted)",
   "main": "index.js",
   "engines": {
-    "node": ">=18"
+    "node": ">=16"
   },
   "scripts": {
-    "test": "node --test \"test/**/*.test.js\""
+    "test": "node --test",
+    "deploy:code": "bash ../scripts/deploy-code.sh"
   },
   "dependencies": {
-    "@aws-sdk/client-dynamodb": "3.1152.0",
-    "@aws-sdk/lib-dynamodb": "3.1152.0",
     "ask-sdk-core": "2.14.0",
     "ask-sdk-model": "1.86.0"
   }
