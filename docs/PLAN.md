@@ -202,7 +202,7 @@ certification rule against single dictionary words.
 ## Decisions (2026-10-19)
 
 - **Hosting:** Alexa-hosted. Node.js, Lambda, and the provided DynamoDB table.
-- **Repo:** public on GitHub, MIT licence.
+- **Repo:** private on GitHub (decided 2026-10-19), MIT licence file kept. Nothing depends on public access: skill icons are hosted by Amazon via the skill package.
 - **Audience:** personal use for now. The Plex login path is built for many
   users from the start, keyed per Alexa user, so a later beta needs no rework.
 
