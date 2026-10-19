@@ -245,13 +245,28 @@ const SkillDisabledHandler = {
   },
 };
 
+/**
+ * Short spoken reason. PlexError messages contain only the method, path and
+ * HTTP status (never query strings or tokens); anything else is generic.
+ */
+function reasonFor(error) {
+  if (!error) return '';
+  if (error.name === 'PlexError' && error.status) {
+    const m = /^Plex (\w+) (\S+) failed/.exec(error.message || '');
+    const where = m ? m[2].split('/').filter(Boolean).slice(0, 2).join(' ') : 'the server';
+    return `Plex answered ${error.status} for ${where}.`;
+  }
+  if (/timeout|aborted/i.test(error.message || '') || error.name === 'TimeoutError' || error.name === 'AbortError') return 'The server took too long to answer.';
+  return 'The server could not be reached.';
+}
+
 const ErrorHandler = {
   canHandle: () => true,
   handle(h, error) {
     // Never log tokens: only the message and status.
     console.error('handler error:', error && error.message, error && error.status);
     return h.responseBuilder
-      .speak("Sorry, I couldn't talk to Plex just now. Please try again in a moment.")
+      .speak(`Sorry, I couldn't talk to Plex just now. ${reasonFor(error)} Please try again in a moment.`)
       .withShouldEndSession(true)
       .getResponse();
   },

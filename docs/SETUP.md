@@ -37,7 +37,10 @@ mkdir -p .ask && cat > .ask/ask-states.json <<'EOF'
 EOF
 ask smapi get-alexa-hosted-skill-metadata -s <skill id>     # prints the CodeCommit URL
 git remote add alexa <CodeCommit URL>
-git config "credential.<CodeCommit URL>.helper" '!ask util git-credentials-helper'
+# The empty helper stops macOS Keychain from caching the short-lived
+# CodeCommit credentials (stale ones cause HTTP 403 on later pushes).
+git config --add "credential.<CodeCommit URL>.helper" ''
+git config --add "credential.<CodeCommit URL>.helper" '!ask util git-credentials-helper'
 git fetch alexa
 ```
 
