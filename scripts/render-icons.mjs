@@ -14,7 +14,7 @@ const page = await browser.newPage({ deviceScaleFactor: 1 });
 for (const px of [512, 108]) {
   await page.setViewportSize({ width: px, height: px });
   await page.setContent(`<html><body style="margin:0">${svg(px)}</body></html>`);
-  await page.screenshot({ path: `${new URL('../assets/', import.meta.url).pathname}icon-${px}.png`, clip: { x: 0, y: 0, width: px, height: px } });
+  await page.screenshot({ path: `${new URL('../skill-package/assets/images/', import.meta.url).pathname}icon-${px}.png`, clip: { x: 0, y: 0, width: px, height: px } });
 }
 await browser.close();
 console.log('ok');

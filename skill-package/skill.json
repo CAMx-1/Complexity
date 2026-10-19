@@ -16,7 +16,9 @@
             "video",
             "movies",
             "tv"
-          ]
+          ],
+          "smallIconUri": "file://assets/images/icon-108.png",
+          "largeIconUri": "file://assets/images/icon-512.png"
         }
       },
       "isAvailableWorldwide": false,
