@@ -8,3 +8,9 @@ for music, use an existing Plex music skill.
 Status: planning. See [docs/PLAN.md](docs/PLAN.md).
 
 Not affiliated with or endorsed by Plex, Inc. or Amazon.
+
+## Privacy Policy
+Complexity Player stores only your Plex sign-in, your chosen server and your
+playback position, so it can play your own library. It doesn't sell or share
+data or use analytics. "Unlink Plex" or disabling the skill deletes it all.
+See [PRIVACY.md](PRIVACY.md).
