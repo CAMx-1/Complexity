@@ -66,6 +66,7 @@ async function discoverServers(fetchImpl, rec) {
   const list = await servers.listServers(fetchImpl, rec.device, rec.token.value);
   rec.server = null;
   rec.serverChoices = null;
+  rec.hasMultipleServers = list.length > 1;
   if (!list.length) return STATUS.NO_SERVER;
   if (list.length === 1) return selectServer(fetchImpl, rec, list[0], list);
   rec.serverChoices = list.map((s) => ({ name: s.name, clientIdentifier: s.clientIdentifier, owned: s.owned }));

@@ -1,7 +1,7 @@
 {
   "interactionModel": {
     "languageModel": {
-      "invocationName": "complexity",
+      "invocationName": "complexity player",
       "intents": [
         {
           "name": "AMAZON.HelpIntent",

@@ -83,8 +83,8 @@ Option (b) adds hosting cost and bandwidth.
 
 ## Voice and touch design (first draft)
 
-Invocation name: "complexity" (fallback: "complexity player"), confirmed
-after testing in M0.
+Invocation name: **"complexity player"** (chosen 2026-10-19; two words, so it
+can also pass certification).
 
 | Say | Does |
 |---|---|
@@ -188,10 +188,8 @@ step, so there is no TypeScript.
 "Complexity" is an ordinary word and doesn't use the Plex trademark as a name.
 The store description still says "Plex" when describing what the skill works
 with, plus a "not affiliated" line, which is the usual nominative use.
-Single-word invocation names are allowed in the Development stage, but
-certification only accepts them for distinctive brand names. If the skill is
-published, "complexity" may have to become two words (for example "complexity
-player").
+The invocation name is "complexity player". It has two words, which avoids the
+certification rule against single dictionary words.
 
 ## Prerequisites
 
@@ -239,4 +237,4 @@ works, because legacy tokens don't expire.
 
 ## Open questions
 
-1. Invocation name "complexity": test ASR recognition on the Show in M0 (it may be heard as the plain word and routed to Alexa's general answers).
+1. Skill icons for the Alexa app: the manifest has none yet. On-screen UI uses a vector logo.

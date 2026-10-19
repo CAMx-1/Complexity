@@ -73,13 +73,13 @@ remote, which in this repo is GitHub.
 
 Developer Console → Test → set testing to **Development**. On the Echo Show:
 
-> "Alexa, open complexity"
+> "Alexa, open complexity player"
 
 The screen shows a 4-character code. Enter it at <https://plex.tv/link>,
 signed in to the Plex account that owns or shares the server. The screen
 updates within about 5 seconds.
 
-Then try: "Alexa, ask complexity which server am I using".
+Then try: "Alexa, ask complexity player to play The Bear", or tap a server or poster on screen.
 
 ## Requirements on the Plex side
 

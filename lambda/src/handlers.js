@@ -6,6 +6,9 @@
 const Alexa = require('ask-sdk-core');
 const link = require('./link');
 const apl = require('./apl/link');
+const homeApl = require('./apl/home');
+const lib = require('./plex/library');
+const pb = require('./plex/playback');
 
 const { STATUS } = link;
 const LINK_URL = 'plex.tv/link';
@@ -28,8 +31,42 @@ function choicesSpeech(choices) {
   return `I found ${choices.length} Plex servers: ${names.join('; ')}. Which one should I use? You can say the name or the number.`;
 }
 
+const withTimeout = (p, ms) => Promise.race([p, new Promise((resolve) => setTimeout(() => resolve(null), ms))]);
+
+/** Home screen: logo, connection, hints, and tappable Continue Watching. Never blocks long on Plex. */
+async function renderHome(h) {
+  if (!hasScreen(h)) return;
+  const r = rec(h);
+  const f = fetchOf(h);
+  let onDeck = [];
+  try {
+    const items = await withTimeout(lib.onDeck(f, r.device, r.server, { limit: 8 }), 2500);
+    if (items && items.length) {
+      const token = await withTimeout(pb.transientToken(f, r.device, r.server), 1500);
+      const base = pb.streamCandidates(r.server)[0];
+      onDeck = items.map((i) => ({
+        ratingKey: i.ratingKey,
+        title: i.type === 'episode' ? i.showTitle : i.title,
+        caption: i.type === 'episode' ? `S${i.season} · E${i.episode}` : (i.year ? String(i.year) : ''),
+        image: (token && pb.imageUrl(base, i.thumb, token, { width: 340, height: 510 })) || '',
+        progress: i.durationMs ? i.viewOffsetMs / i.durationMs : 0,
+      }));
+    }
+  } catch { onDeck = []; }
+  h.responseBuilder.addDirective({
+    type: 'Alexa.Presentation.APL.RenderDocument',
+    token: homeApl.TOKEN.home,
+    document: homeApl.homeDocument({
+      serverName: r.server.name,
+      username: r.account && r.account.username,
+      multipleServers: !!r.hasMultipleServers,
+      onDeck,
+    }),
+  });
+}
+
 /** Build the response that matches the record's current state. */
-function respondForStatus(h, st, { justLinked = false, prefix = '' } = {}) {
+async function respondForStatus(h, st, { justLinked = false, prefix = '' } = {}) {
   const r = rec(h);
   const rb = h.responseBuilder;
   // speak() replaces earlier speech, so callers pass any lead-in as `prefix`.
@@ -53,10 +90,17 @@ function respondForStatus(h, st, { justLinked = false, prefix = '' } = {}) {
         .getResponse();
     }
     case STATUS.CHOOSE_SERVER: {
-      const lines = r.serverChoices.map((c, i) => `${i + 1}.  ${c.name}${c.owned ? '' : '  (shared)'}`);
-      render(h, apl.statusDocument({ title: justLinked ? `Linked${who}` : 'Choose a Plex server', lines, hint: 'Say the server name or number' }), apl.TOKEN.status);
+      if (hasScreen(h)) {
+        rb.addDirective({
+          type: 'Alexa.Presentation.APL.RenderDocument',
+          token: homeApl.TOKEN.servers,
+          document: homeApl.serverPickerDocument({ choices: r.serverChoices, currentId: r.previousServerId, title: justLinked ? `Linked${who}: choose a server` : 'Choose a Plex server' }),
+        });
+      }
       const s = choicesSpeech(r.serverChoices);
-      return say(`${justLinked ? `Your Plex account is linked${who}. ` : ''}${s}`).reprompt(s).getResponse();
+      const lead = justLinked ? `Your Plex account is linked${who}. ` : '';
+      if (hasScreen(h)) return say(`${lead}${r.serverChoices.length > 4 ? `I found ${r.serverChoices.length} Plex servers. Tap the one to use, or say its name or number.` : s}`).getResponse();
+      return say(`${lead}${s}`).reprompt(s).getResponse();
     }
     case STATUS.NO_SERVER: {
       const name = r.unreachable && r.unreachable.name;
@@ -67,15 +111,11 @@ function respondForStatus(h, st, { justLinked = false, prefix = '' } = {}) {
       return say(msg).withShouldEndSession(true).getResponse();
     }
     case STATUS.READY: {
-      const s = r.server;
-      render(h, apl.statusDocument({
-        title: justLinked ? `Linked${who}` : 'Complexity',
-        lines: [`Connected to ${s.name}`],
-        hint: 'Try: "play The Bear" · "continue watching" · "play the movie Dune"',
-      }), apl.TOKEN.status);
-      const lead = justLinked ? `You're all set. Plex is linked${who}, and I'll use the server ${s.name}.` : `Connected to ${s.name}.`;
-      return say(`${lead} What would you like to watch? You can say a movie or show, or continue watching.`)
-        .reprompt('What would you like to do?')
+      const srv = r.server;
+      await renderHome(h);
+      const lead = justLinked ? `You're all set. Plex is linked${who}, and I'll use the server ${srv.name}.` : `Connected to ${srv.name}.`;
+      return say(`${lead} What would you like to watch?`)
+        .reprompt('Say a movie or show, or continue watching.')
         .getResponse();
     }
     default: // UNLINKED shouldn't reach here; callers start a link first
@@ -172,6 +212,7 @@ const SwitchServerIntentHandler = {
   async handle(h) {
     const r = rec(h);
     if (!r.token) return startOrResume(h);
+    r.previousServerId = r.server && r.server.clientIdentifier;
     const st = await link.discoverServers(fetchOf(h), r);
     if (st === STATUS.READY) {
       return h.responseBuilder.speak(`You only have one server, ${r.server.name}, so I'll keep using it.`).reprompt('What would you like to do?').getResponse();
@@ -208,6 +249,31 @@ const UnlinkIntentHandler = {
       .speak(`Done. I've removed your Plex sign-in from this skill. You can also remove Complexity from Authorized Devices in your Plex account settings.`)
       .withShouldEndSession(true)
       .getResponse();
+  },
+};
+
+const ServerTapHandler = {
+  canHandle: (h) => Alexa.getRequestType(h.requestEnvelope) === 'Alexa.Presentation.APL.UserEvent'
+    && (h.requestEnvelope.request.arguments || [])[0] === 'server',
+  async handle(h) {
+    const r = rec(h);
+    const [, action, id] = h.requestEnvelope.request.arguments;
+    if (action !== 'select' || !r.token) return startOrResume(h);
+    const st = await link.selectServer(fetchOf(h), r, { clientIdentifier: id });
+    if (st === null) return respondForStatus(h, STATUS.CHOOSE_SERVER, { prefix: "That server isn't available any more. " });
+    delete r.previousServerId;
+    return respondForStatus(h, st);
+  },
+};
+
+const HomeTapHandler = {
+  canHandle: (h) => Alexa.getRequestType(h.requestEnvelope) === 'Alexa.Presentation.APL.UserEvent'
+    && (h.requestEnvelope.request.arguments || [])[0] === 'home'
+    && ['servers', 'help'].includes((h.requestEnvelope.request.arguments || [])[1]),
+  async handle(h) {
+    const [, action] = h.requestEnvelope.request.arguments;
+    if (action === 'help') return HelpHandler.handle(h);
+    return SwitchServerIntentHandler.handle(h);
   },
 };
 
@@ -281,6 +347,7 @@ const requestHandlers = [
   ...videoHandlers, // first: playback-specific Stop/SessionEnded take precedence
   LaunchHandler, LinkAccountIntentHandler, CheckLinkIntentHandler, PollLinkEventHandler,
   SelectServerIntentHandler, SwitchServerIntentHandler, LinkStatusIntentHandler, UnlinkIntentHandler,
+  ServerTapHandler, HomeTapHandler,
   HelpHandler, StopHandler, FallbackHandler, SessionEndedHandler, SkillDisabledHandler,
 ];
 

@@ -23,7 +23,7 @@ function fakePlex({ servers = [], reachable = new Set(), username = 'cam', libra
   const nonces = new Set();
   const calls = [];
   let nextPin = 1000;
-  const state = { linkAs: null, refreshFails: false, library, transientMinted: 0, timeline: [], scrobbled: [], stopped: [] };
+  const state = { linkAs: null, refreshFails: false, library, transientMinted: 0, timeline: [], scrobbled: [], stopped: [], sessions: new Set(), segmentsRequested: [], startDelays: 0, segmentDelays: 0, maxOffset: null };
 
   // Minimal fetch Response (Node 16 has no global Response).
   const json = (status, body) => {
@@ -89,9 +89,34 @@ function fakePlex({ servers = [], reachable = new Set(), username = 'cam', libra
     }
     // Fake PMS library and playback endpoints (shared library for all servers).
     const lib = state.library;
+    // HLS transcoder: start.m3u8 authorised by ?X-Plex-Token (transient); session paths need no token.
+    const raw = (status, text) => ({ ok: status >= 200 && status < 300, status, text: async () => text });
+    if (u.pathname === '/video/:/transcode/universal/start.m3u8') {
+      const t = u.searchParams.get('X-Plex-Token') || '';
+      if (!t.startsWith('transient-')) return raw(401, 'Unauthorized');
+      if (state.startDelays > 0) { state.startDelays -= 1; throw Object.assign(new Error('The operation was aborted due to timeout'), { name: 'TimeoutError' }); }
+      const sid = u.searchParams.get('session');
+      state.sessions.add(sid);
+      return raw(200, `#EXTM3U\n#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=7000000,RESOLUTION=1920x1080\nsession/${sid}/base/index.m3u8\n`);
+    }
+    const sess = u.pathname.match(/^\/video\/:\/transcode\/universal\/session\/([^/]+)\/base\/(.+)$/);
+    if (sess) {
+      if (!state.sessions.has(sess[1])) return raw(404, 'Not Found');
+      if (sess[2] === 'index.m3u8') {
+        let body = '#EXTM3U\n#EXT-X-TARGETDURATION:10\n#EXT-X-MEDIA-SEQUENCE:0\n';
+        for (let i = 0; i < 1200; i++) body += `#EXTINF:10, nodesc\n${String(i).padStart(5, '0')}.ts\n`;
+        return raw(200, body);
+      }
+      state.segmentsRequested.push(sess[2]);
+      if (state.segmentDelays > 0) { state.segmentDelays -= 1; throw Object.assign(new Error('The operation was aborted due to timeout'), { name: 'TimeoutError' }); }
+      return raw(206, 'x'.repeat(1024));
+    }
     // Like real PMS (1.42): legacy tokens only; JWTs get 401.
     const authed = !!h['X-Plex-Token'] && !String(h['X-Plex-Token']).startsWith('eyJ');
     if (!authed) return json(401, {});
+    if (u.pathname === '/transcode/sessions') {
+      return json(200, { MediaContainer: { TranscodeSession: [...state.sessions].map((sid) => ({ key: `/transcode/sessions/${sid}`, maxOffsetAvailable: state.maxOffset })) } });
+    }
     if (u.pathname === '/hubs/search') {
       const q = (u.searchParams.get('query') || '').toLowerCase();
       const hit = (t) => t.toLowerCase().includes(q);
@@ -114,13 +139,13 @@ function fakePlex({ servers = [], reachable = new Set(), username = 'cam', libra
 }
 
 function sampleLibrary() {
-  const ep = (key, s, e, extra = {}) => ({ ratingKey: key, type: 'episode', title: `Ep ${s}x${e}`, grandparentTitle: 'The Bear', grandparentRatingKey: '100', parentIndex: s, index: e, duration: 1_800_000, ...extra });
+  const ep = (key, s, e, extra = {}) => ({ ratingKey: key, type: 'episode', title: `Ep ${s}x${e}`, grandparentTitle: 'The Bear', grandparentRatingKey: '100', parentIndex: s, index: e, duration: 1_800_000, grandparentThumb: '/library/metadata/100/thumb/1', ...extra });
   const items = [
     { ratingKey: '100', type: 'show', title: 'The Bear', year: 2022, score: '0.9' },
     ep('101', 1, 1, { viewCount: 1 }),
     ep('102', 1, 2, { viewOffset: 600_000 }),
     ep('103', 1, 3),
-    { ratingKey: '200', type: 'movie', title: 'Dune', year: 2021, duration: 9_000_000, viewOffset: 3_600_000, score: '0.8' },
+    { ratingKey: '200', type: 'movie', title: 'Dune', year: 2021, duration: 9_000_000, viewOffset: 3_600_000, score: '0.8', thumb: '/library/metadata/200/thumb/1' },
     { ratingKey: '201', type: 'movie', title: 'Dune: Part Two', year: 2024, duration: 9_900_000, score: '0.7' },
   ];
   return { items, onDeck: [items[2]] };

@@ -7,9 +7,9 @@
           "summary": "Watch your Plex library on Echo Show.",
           "description": "Complexity plays movies and TV from your own Plex Media Server on Echo Show devices. Link your Plex account with a short code at plex.tv/link; no password is ever shared with the skill. Not affiliated with Plex, Inc.",
           "examplePhrases": [
-            "Alexa, open complexity",
-            "Alexa, ask complexity which server am I using",
-            "Alexa, ask complexity to switch server"
+            "Alexa, open complexity player",
+            "Alexa, ask complexity player to play The Bear",
+            "Alexa, ask complexity player to continue watching"
           ],
           "keywords": [
             "plex",

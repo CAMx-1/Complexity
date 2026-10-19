@@ -5,8 +5,7 @@
 const APL_VERSION = '2023.3';
 const TOKEN = { link: 'linkScreen', status: 'statusScreen' };
 
-const BG = '#0f1117';
-const ACCENT = '#e5a00d'; // Plex-ish amber
+const { BG, ACCENT, graphics, logo } = require('./ui');
 
 const frame = (items) => ({
   type: 'Container',
@@ -35,6 +34,7 @@ function linkDocument({ code, pollSeconds = 5, maxPolls = 150 }) {
     type: 'APL',
     version: APL_VERSION,
     theme: 'dark',
+    graphics,
     onMount: [{
       type: 'Sequential',
       repeatCount: maxPolls,
@@ -43,6 +43,7 @@ function linkDocument({ code, pollSeconds = 5, maxPolls = 150 }) {
     mainTemplate: {
       parameters: [],
       items: [frame([
+        logo('12vh'),
         text('Link your Plex account', { size: '5vh', color: '#ffffff', weight: 'bold' }),
         text('On your phone or computer, go to', { top: '4vh' }),
         text('plex.tv/link', { size: '6vh', color: ACCENT, weight: 'bold', top: '1vh' }),
@@ -60,9 +61,11 @@ function statusDocument({ title, lines = [], hint }) {
     type: 'APL',
     version: APL_VERSION,
     theme: 'dark',
+    graphics,
     mainTemplate: {
       parameters: [],
       items: [frame([
+        logo('14vh'),
         text(title, { size: '6vh', color: '#ffffff', weight: 'bold' }),
         ...lines.map((l, i) => text(l, { size: '4.5vh', top: i === 0 ? '4vh' : '1.5vh' })),
         ...(hint ? [text(hint, { size: '3.2vh', color: ACCENT, top: '5vh' })] : []),

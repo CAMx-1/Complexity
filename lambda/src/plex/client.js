@@ -53,4 +53,19 @@ async function plexRequest(fetchImpl, url, { method = 'GET', clientId, token, bo
   return data;
 }
 
-module.exports = { PRODUCT, VERSION, PLEX_TV, PlexError, plexHeaders, plexRequest };
+module.exports = { PRODUCT, VERSION, PLEX_TV, PlexError, plexHeaders, plexRequest, plexRaw };
+
+/**
+ * Raw GET for playlists and segment probes. The URL already carries its
+ * credential (transient token or session path). Returns { status, text }.
+ * Throws on network errors and timeouts.
+ */
+async function plexRaw(fetchImpl, url, { clientId, headers = {}, timeoutMs = 4000 } = {}) {
+  const res = await fetchImpl(url, {
+    method: 'GET',
+    headers: { ...plexHeaders(clientId), Accept: '*/*', ...headers },
+    signal: typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(timeoutMs) : undefined,
+    timeoutMs,
+  });
+  return { status: res.status, ok: res.ok, text: await res.text() };
+}

@@ -7,6 +7,9 @@ const link = require('./link');
 const play = require('./play');
 const lib = require('./plex/library');
 const player = require('./apl/player');
+const loading = require('./apl/loading');
+const warmup = require('./warmup');
+const pb = require('./plex/playback');
 
 const rec = (h) => h.attributesManager.getRequestAttributes().rec;
 const fetchOf = (h) => h.attributesManager.getRequestAttributes().fetch;
@@ -38,20 +41,53 @@ function subtitleFor(item) {
 }
 function titleFor(item) { return item.type === 'episode' ? item.showTitle : item.title; }
 
-/** Render the player for `item`. `lead` is spoken before playback starts. */
-async function renderPlayer(h, item, offsetMs, { lead = '', candidate = 0 } = {}) {
-  const url = await play.start(fetchOf(h), rec(h), item, offsetMs, { candidate });
+/**
+ * Start a stream for `item` and show the loading screen. The screen ticks the
+ * skill until the stream is warm, then the player replaces it (LoadTickHandler).
+ * `lead` is spoken right away.
+ */
+async function renderLoading(h, item, offsetMs, { lead = '', candidate = 0 } = {}) {
+  const r = rec(h);
+  const url = await play.start(fetchOf(h), r, item, offsetMs, { candidate });
   if (!url) return null;
+  r.playback.state = 'loading';
+  r.playback.url = url;
+  r.playback.warm = warmup.begin(url, offsetMs);
+  const base = pb.streamCandidates(r.server)[candidate];
+  const token = r.server.transient && r.server.transient.value;
+  h.responseBuilder.addDirective({
+    type: 'Alexa.Presentation.APL.RenderDocument',
+    token: loading.TOKEN,
+    document: loading.loadingDocument({
+      title: titleFor(item),
+      subtitle: subtitleFor(item),
+      posterUrl: pb.imageUrl(base, item.thumb, token, { width: 500, height: 750 }),
+      artUrl: pb.imageUrl(base, item.art, token, { width: 1280, height: 720 }),
+      pct: r.playback.warm.pct,
+      label: 'Waking up your server…',
+    }),
+  });
+  if (lead) h.responseBuilder.speak(lead);
+  // No reprompt / shouldEndSession: the session stays open while the screen ticks.
+  return h.responseBuilder.getResponse();
+}
+
+/** Swap the loading screen for the player once the stream is warm. */
+function renderPlayerNow(h) {
+  const p = rec(h).playback;
+  const item = p.item;
+  p.state = 'playing';
+  p.warm = null;
   h.responseBuilder.addDirective({
     type: 'Alexa.Presentation.APL.RenderDocument',
     token: player.TOKEN,
-    document: player.playerDocument({ url, title: titleFor(item), subtitle: subtitleFor(item), offsetMs }),
+    document: player.playerDocument({ url: p.url, title: titleFor(item), subtitle: subtitleFor(item), offsetMs: p.startMs }),
   });
-  if (lead) h.responseBuilder.speak(lead);
-  // No reprompt and no shouldEndSession: the session stays open while the
-  // video is on screen, without keeping the microphone open.
   return h.responseBuilder.getResponse();
 }
+
+// Kept for call sites that restart playback (start over, next, retry).
+const renderPlayer = renderLoading;
 
 async function playRequest(h, req) {
   const { startOrResume } = require('./handlers'); // lazy: avoid a require cycle
@@ -163,6 +199,50 @@ const PlaybackSessionEndedHandler = {
   },
 };
 
+const HomePlayTapHandler = {
+  canHandle: (h) => Alexa.getRequestType(h.requestEnvelope) === 'Alexa.Presentation.APL.UserEvent'
+    && (h.requestEnvelope.request.arguments || [])[0] === 'home'
+    && (h.requestEnvelope.request.arguments || [])[1] === 'play',
+  async handle(h) {
+    const { startOrResume } = require('./handlers');
+    if (!(await ensureReady(h))) return startOrResume(h);
+    const r = rec(h);
+    const item = await lib.item(fetchOf(h), r.device, r.server, h.requestEnvelope.request.arguments[2]);
+    if (!item) return h.responseBuilder.speak("I couldn't find that on your server any more.").getResponse();
+    if (item.type === 'show') {
+      const ep = await lib.nextEpisode(fetchOf(h), r.device, r.server, item.ratingKey);
+      if (!ep) return h.responseBuilder.speak(`${item.title} has no episodes.`).getResponse();
+      return renderLoading(h, ep, play.startPosition(ep), { lead: `Playing ${lib.describe(ep)}.` });
+    }
+    const off = play.startPosition(item);
+    return renderLoading(h, item, off, { lead: `${off > 0 ? 'Resuming' : 'Playing'} ${lib.describe(item)}.` });
+  },
+};
+
+const LoadTickHandler = {
+  canHandle: (h) => Alexa.getRequestType(h.requestEnvelope) === 'Alexa.Presentation.APL.UserEvent'
+    && (h.requestEnvelope.request.arguments || [])[0] === 'load',
+  async handle(h) {
+    const r = rec(h);
+    const p = r.playback;
+    if (!p || !p.warm) return h.responseBuilder.getResponse(); // stale tick (already playing or stopped)
+    const st = await warmup.tick(fetchOf(h), r);
+    if (st.ready) return renderPlayerNow(h);
+    if (st.failed) {
+      const next = p.candidate + 1;
+      if (next < pb.streamCandidates(r.server).length) return renderLoading(h, p.item, p.startMs, { candidate: next });
+      const name = r.server.name;
+      await play.stop(fetchOf(h), r);
+      return h.responseBuilder
+        .speak(`${name} didn't start the stream in time. Check that the server is awake and Remote Access is on, then try again.`)
+        .withShouldEndSession(true)
+        .getResponse();
+    }
+    h.responseBuilder.addDirective(loading.progressDirective(st.pct, st.label));
+    return h.responseBuilder.getResponse();
+  },
+};
+
 const PlayerEventHandler = {
   canHandle: isPlayerEvent,
   async handle(h) {
@@ -196,7 +276,7 @@ const NothingPlayingHandler = {
 };
 
 const videoHandlers = [
-  PlayerEventHandler, PauseResumeHandler, SeekHandler, StartOverHandler, NextEpisodeHandler,
+  HomePlayTapHandler, LoadTickHandler, PlayerEventHandler, PauseResumeHandler, SeekHandler, StartOverHandler, NextEpisodeHandler,
   StopPlaybackHandler, PlaybackSessionEndedHandler,
   PlayVideoIntentHandler, PlayEpisodeIntentHandler, ContinueWatchingIntentHandler, NothingPlayingHandler,
 ];
