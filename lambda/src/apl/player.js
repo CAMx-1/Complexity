@@ -6,8 +6,8 @@
 //   ['video', 'progress', currentTimeMs]           every PROGRESS_SECONDS while mounted
 //   ['video', 'ended', currentTimeMs]              track finished
 //   ['video', 'failed']                            stream could not be played
-// currentTime is relative to the start of this stream; the skill adds the
-// offset the transcode started at.
+// The stream always starts at 0, and resume uses the source `offset`, so
+// currentTime is the absolute position in the title.
 
 const { APL_VERSION } = require('./link');
 
@@ -29,9 +29,9 @@ const button = (label, commands) => ({
 });
 
 /**
- * @param {{ url: string, title: string, subtitle?: string }} p
+ * @param {{ url: string, title: string, subtitle?: string, offsetMs?: number }} p
  */
-function playerDocument({ url, title, subtitle = '' }) {
+function playerDocument({ url, title, subtitle = '', offsetMs = 0 }) {
   return {
     type: 'APL',
     version: APL_VERSION,
@@ -57,7 +57,7 @@ function playerDocument({ url, title, subtitle = '' }) {
             scale: 'best-fit',
             autoplay: true,
             audioTrack: 'foreground',
-            source: [{ url, description: title }],
+            source: [{ url, description: title, offset: Math.max(0, Math.round(offsetMs)) }],
             onPlay: [{ type: 'SetValue', componentId: ROOT_ID, property: 'paused', value: false }, send('playing', '${event.currentTime}')],
             onPause: [{ type: 'SetValue', componentId: ROOT_ID, property: 'paused', value: true }, send('paused', '${event.currentTime}')],
             onEnd: [send('ended', '${event.currentTime}')],

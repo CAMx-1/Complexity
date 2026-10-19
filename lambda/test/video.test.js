@@ -46,11 +46,12 @@ async function linked() {
 
 const ssml = (r) => (r.outputSpeech && r.outputSpeech.ssml) || '';
 const render = (r) => (r.directives || []).find((d) => d.type === 'Alexa.Presentation.APL.RenderDocument');
-const videoUrl = (r) => {
+const videoNode = (r) => {
   const find = (n) => (n && typeof n === 'object') ? (n.type === 'Video' ? n : Object.values(n).map(find).find(Boolean)) : null;
-  const v = find(render(r).document);
-  return new URL(v.source[0].url);
+  return find(render(r).document);
 };
+const videoUrl = (r) => new URL(videoNode(r).source[0].url);
+const startOffset = (r) => videoNode(r).source[0].offset;
 
 test('"play The Bear" plays the in-progress episode from the remote URI with a transient token', async () => {
   const { send, store } = await linked();
@@ -61,21 +62,22 @@ test('"play The Bear" plays the in-progress episode from the remote URI with a t
   assert.equal(u.origin, REMOTE);
   assert.equal(u.pathname, '/video/:/transcode/universal/start.m3u8');
   assert.equal(u.searchParams.get('path'), '/library/metadata/102');
-  assert.equal(u.searchParams.get('offset'), '600');
+  assert.equal(u.searchParams.get('offset'), '0', 'transcode always starts at 0 (PMS returns empty segments otherwise)');
+  assert.equal(startOffset(r), 600_000, 'resume via the APL source offset');
   assert.equal(u.searchParams.get('X-Plex-Token'), 'transient-1', 'never the long-lived token');
   assert.equal(u.searchParams.get('X-Plex-Platform'), 'Generic');
   assert.equal(r.reprompt, undefined);
   assert.equal(r.shouldEndSession, undefined, 'session stays open, mic closed');
   const p = (await store.get(USER)).playback;
   assert.equal(p.item.ratingKey, '102');
-  assert.equal(p.baseOffsetMs, 600_000);
+  assert.equal(p.startMs, 600_000);
 });
 
 test('movie resume, "play the movie", and transient token reuse', async () => {
   const { send, plex } = await linked();
   const r = await send(intent('PlayMovieIntent', { title: 'dune' }));
   assert.match(ssml(r), /Resuming Dune from 2021/);
-  assert.equal(videoUrl(r).searchParams.get('offset'), '3600');
+  assert.equal(startOffset(r), 3_600_000);
   await send(intent('PlayMovieIntent', { title: 'dune part two' }));
   assert.equal(plex.state.transientMinted, 1, 'transient token cached on the server record');
 });
@@ -99,10 +101,10 @@ test('specific episode, continue watching, and not-found', async () => {
 
 test('progress, pause and stop are reported to Plex with absolute positions', async () => {
   const { send, store, plex } = await linked();
-  await send(intent('PlayVideoIntent', { title: 'the bear' })); // starts at 600 s
-  const quiet = await send(ev('progress', 30_000));
+  await send(intent('PlayVideoIntent', { title: 'the bear' })); // resumes at 600 s
+  const quiet = await send(ev('progress', 630_000));
   assert.equal(quiet.outputSpeech, undefined);
-  await send(ev('paused', 45_000));
+  await send(ev('paused', 645_000));
   const t = plex.state.timeline;
   assert.deepEqual(t.map((x) => [x.state, x.time, x.ratingKey]), [['playing', '630000', '102'], ['paused', '645000', '102']]);
 
@@ -120,7 +122,7 @@ test('failed stream retries on the LAN URI, then explains', async () => {
   await send(intent('PlayVideoIntent', { title: 'dune' }));
   const retry = await send(ev('failed'));
   assert.equal(videoUrl(retry).origin, LOCAL);
-  assert.equal(videoUrl(retry).searchParams.get('offset'), '3600', 'resumes at the last known position');
+  assert.equal(startOffset(retry), 3_600_000, 'resumes at the last known position');
   const gaveUp = await send(ev('failed'));
   assert.match(ssml(gaveUp), /couldn't play that stream from Basement.*Remote Access/);
   assert.equal(gaveUp.shouldEndSession, true);
@@ -147,7 +149,7 @@ test('voice transport while the player is on screen', async () => {
   assert.equal(cmd(await send(intent('SkipForwardIntent', { duration: 'PT2M' }), on)).value, 120_000);
   assert.equal(cmd(await send(intent('SkipBackIntent'), on)).value, -10_000);
   const over = await send(intent('AMAZON.StartOverIntent'), on);
-  assert.equal(videoUrl(over).searchParams.get('offset'), '0');
+  assert.equal(startOffset(over), 0);
 });
 
 test('next episode by voice', async () => {
@@ -160,7 +162,7 @@ test('next episode by voice', async () => {
 test('session end while watching saves the position', async () => {
   const { send, store, plex } = await linked();
   await send(intent('PlayVideoIntent', { title: 'dune' }));
-  await send(ev('progress', 60_000));
+  await send(ev('progress', 3_660_000));
   await send({ type: 'SessionEndedRequest', reason: 'USER_INITIATED' });
   assert.equal(plex.state.timeline.at(-1).state, 'stopped');
   assert.equal(plex.state.timeline.at(-1).time, '3660000');
@@ -190,4 +192,11 @@ test('transport with nothing playing', async () => {
   const { send } = await linked();
   const r = await send(intent('AMAZON.PauseIntent'));
   assert.match(ssml(r), /Nothing is playing/);
+});
+
+test('an early currentTime of 0 does not overwrite the resume position', async () => {
+  const { send, store } = await linked();
+  await send(intent('PlayMovieIntent', { title: 'dune' })); // resumes at 3600 s
+  await send(ev('playing', 0)); // fired before the offset is applied
+  assert.equal((await store.get(USER)).playback.lastPosMs, 3_600_000);
 });

@@ -5,7 +5,7 @@
 // rec.playback = {
 //   item:        slimmed metadata (ratingKey, type, title, showTitle, season, episode, durationMs, showKey),
 //   sessionId:   Plex transcode session,
-//   baseOffsetMs where the transcode started (APL currentTime is relative to it),
+//   startMs:     where playback started (APL Video source offset; the transcode itself starts at 0),
 //   lastPosMs:   last absolute position we know,
 //   candidate:   index into playback.streamCandidates(server),
 //   state:       'playing' | 'paused',
@@ -55,11 +55,11 @@ async function start(fetchImpl, rec, item, offsetMs, { candidate = 0 } = {}) {
   if (candidate >= bases.length) return null;
   const token = await pb.transientToken(fetchImpl, device, server);
   const sessionId = pb.newSessionId();
-  const url = pb.hlsUrl({ base: bases[candidate], ratingKey: item.ratingKey, offsetMs, sessionId, clientId: device.clientId, token, quality: (rec.prefs && rec.prefs.quality) || '1080p' });
+  const url = pb.hlsUrl({ base: bases[candidate], ratingKey: item.ratingKey, sessionId, clientId: device.clientId, token, quality: (rec.prefs && rec.prefs.quality) || '1080p' });
   rec.playback = {
     item: { ratingKey: item.ratingKey, type: item.type, title: item.title, year: item.year, showTitle: item.showTitle, showKey: item.showKey, season: item.season, episode: item.episode, durationMs: item.durationMs },
     sessionId,
-    baseOffsetMs: offsetMs,
+    startMs: offsetMs,
     lastPosMs: offsetMs,
     candidate,
     state: 'playing',
@@ -68,10 +68,10 @@ async function start(fetchImpl, rec, item, offsetMs, { candidate = 0 } = {}) {
   return url;
 }
 
-/** Absolute position from an APL currentTime (ms, relative to the stream start). */
-function absolute(rec, relMs) {
-  const rel = Number(relMs);
-  return rec.playback.baseOffsetMs + (Number.isFinite(rel) && rel >= 0 ? rel : 0);
+/** Position from an APL currentTime (ms). The stream starts at 0, so it is already absolute. */
+function absolute(rec, ms) {
+  const t = Number(ms);
+  return Number.isFinite(t) && t >= 0 ? t : rec.playback.lastPosMs;
 }
 
 /** Handle a player event. Returns an action for the handler: none | ended | retry | exhausted. */
@@ -84,7 +84,8 @@ async function onPlayerEvent(fetchImpl, rec, kind, relMs) {
     return next < pb.streamCandidates(server).length ? { action: 'retry', candidate: next } : { action: 'exhausted' };
   }
   const pos = absolute(rec, relMs);
-  if (pos > 0) p.lastPosMs = pos;
+  // Ignore an early 0 (before the player has applied the start offset).
+  if (pos > 0 || p.startMs === 0) p.lastPosMs = pos;
   const report = (state) => pb.reportTimeline(fetchImpl, device, server, { ratingKey: p.item.ratingKey, state, timeMs: p.lastPosMs, durationMs: p.item.durationMs, sessionId: p.sessionId }).catch(() => {});
   if (kind === 'playing' || kind === 'paused') {
     p.state = kind;

@@ -45,7 +45,7 @@ async function renderPlayer(h, item, offsetMs, { lead = '', candidate = 0 } = {}
   h.responseBuilder.addDirective({
     type: 'Alexa.Presentation.APL.RenderDocument',
     token: player.TOKEN,
-    document: player.playerDocument({ url, title: titleFor(item), subtitle: subtitleFor(item) }),
+    document: player.playerDocument({ url, title: titleFor(item), subtitle: subtitleFor(item), offsetMs }),
   });
   if (lead) h.responseBuilder.speak(lead);
   // No reprompt and no shouldEndSession: the session stays open while the

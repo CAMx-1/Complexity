@@ -8,6 +8,10 @@
 //     the first URL carries a credential.
 //   - With the client-profile extra below, output is H.264 High@4.0 + AAC-LC
 //     1080p in MPEG-TS, which Echo devices play.
+//   - Starting a transcode at offset>0 returned empty 188-byte segments
+//     (seen on device: black screen). Starting at 0 and letting the player seek
+//     works: PMS transcodes the requested segment on demand. So the URL always
+//     starts at 0 and resume is done by the APL Video source `offset`.
 
 const crypto = require('node:crypto');
 const { plexRequest, PRODUCT } = require('./client');
@@ -48,7 +52,7 @@ function streamCandidates(server) {
 function newSessionId() { return crypto.randomUUID(); }
 
 /** Universal-transcoder HLS URL for a movie/episode, starting at offsetMs. */
-function hlsUrl({ base, ratingKey, offsetMs = 0, sessionId, clientId, token, quality = '1080p' }) {
+function hlsUrl({ base, ratingKey, sessionId, clientId, token, quality = '1080p' }) {
   const q = QUALITY[quality] || QUALITY['1080p'];
   const p = new URLSearchParams({
     path: `/library/metadata/${ratingKey}`,
@@ -58,7 +62,7 @@ function hlsUrl({ base, ratingKey, offsetMs = 0, sessionId, clientId, token, qua
     mediaIndex: '0',
     partIndex: '0',
     fastSeek: '1',
-    offset: String(Math.max(0, Math.floor(offsetMs / 1000))),
+    offset: '0',
     videoResolution: q.videoResolution,
     maxVideoBitrate: String(q.maxVideoBitrate),
     videoQuality: '100',
