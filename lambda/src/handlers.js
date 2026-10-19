@@ -329,9 +329,22 @@ function reasonFor(error) {
   return 'The server could not be reached.';
 }
 
+/** The screen reported an APL problem. Keep the session (and the screen) going. */
+const AplRuntimeErrorHandler = {
+  canHandle: (h) => Alexa.getRequestType(h.requestEnvelope) === 'Alexa.Presentation.APL.RuntimeError',
+  handle: (h) => h.responseBuilder.getResponse(),
+};
+
+/** Alexa rejected one of our responses (e.g. a bad directive). Logged by diag; nothing to say. */
+const ExceptionEncounteredHandler = {
+  canHandle: (h) => Alexa.getRequestType(h.requestEnvelope) === 'System.ExceptionEncountered',
+  handle: (h) => h.responseBuilder.getResponse(),
+};
+
 const ErrorHandler = {
   canHandle: () => true,
   handle(h, error) {
+    h.attributesManager.getRequestAttributes().lastError = `${(error && error.name) || 'Error'}: ${String((error && error.message) || '').slice(0, 200)}`;
     // Never log tokens: only the message and status.
     console.error('handler error:', error && error.message, error && error.status);
     return h.responseBuilder
@@ -349,6 +362,7 @@ const requestHandlers = [
   SelectServerIntentHandler, SwitchServerIntentHandler, LinkStatusIntentHandler, UnlinkIntentHandler,
   ServerTapHandler, HomeTapHandler,
   HelpHandler, StopHandler, FallbackHandler, SessionEndedHandler, SkillDisabledHandler,
+  AplRuntimeErrorHandler, ExceptionEncounteredHandler,
 ];
 
 module.exports = { requestHandlers, ErrorHandler, startOrResume };
