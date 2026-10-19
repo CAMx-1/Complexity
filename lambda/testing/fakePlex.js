@@ -17,13 +17,13 @@ function makeJwt(expSeconds) {
   return `${enc({ alg: 'EdDSA', typ: 'JWT' })}.${enc({ exp: expSeconds, sub: 'user' })}.sig`;
 }
 
-function fakePlex({ servers = [], reachable = new Set(), username = 'cam' } = {}) {
+function fakePlex({ servers = [], reachable = new Set(), username = 'cam', library = sampleLibrary() } = {}) {
   const pins = new Map();
   const keys = new Map(); // clientId -> jwk
   const nonces = new Set();
   const calls = [];
   let nextPin = 1000;
-  const state = { linkAs: null, refreshFails: false };
+  const state = { linkAs: null, refreshFails: false, library, transientMinted: 0, timeline: [], scrobbled: [], stopped: [] };
 
   // Minimal fetch Response (Node 16 has no global Response).
   const json = (status, body) => {
@@ -87,10 +87,42 @@ function fakePlex({ servers = [], reachable = new Set(), username = 'cam' } = {}
       const srv = servers.find((s) => (s.connections || []).some((c) => c.uri === origin));
       return json(200, { MediaContainer: { machineIdentifier: srv && srv.clientIdentifier } });
     }
+    // Fake PMS library and playback endpoints (shared library for all servers).
+    const lib = state.library;
+    const authed = !!h['X-Plex-Token'];
+    if (!authed && u.pathname !== '/identity') return json(401, {});
+    if (u.pathname === '/hubs/search') {
+      const q = (u.searchParams.get('query') || '').toLowerCase();
+      const hit = (t) => t.toLowerCase().includes(q);
+      const hubs = ['movie', 'show', 'episode'].map((type) => ({ type, Metadata: lib.items.filter((i) => i.type === type && hit(i.title)) }));
+      return json(200, { MediaContainer: { Hub: hubs } });
+    }
+    const leaves = u.pathname.match(/^\/library\/metadata\/(\w+)\/allLeaves$/);
+    if (leaves) return json(200, { MediaContainer: { Metadata: lib.items.filter((i) => i.type === 'episode' && i.grandparentRatingKey === leaves[1]) } });
+    const one = u.pathname.match(/^\/library\/metadata\/(\w+)$/);
+    if (one) return json(200, { MediaContainer: { Metadata: lib.items.filter((i) => i.ratingKey === one[1]) } });
+    if (u.pathname === '/library/onDeck') return json(200, { MediaContainer: { Metadata: lib.onDeck } });
+    if (u.pathname === '/security/token') { state.transientMinted += 1; return json(200, { MediaContainer: { token: `transient-${state.transientMinted}` } }); }
+    if (u.pathname === '/:/timeline') { state.timeline.push(Object.fromEntries(u.searchParams)); return json(200, {}); }
+    if (u.pathname === '/:/scrobble') { state.scrobbled.push(u.searchParams.get('key')); return json(200, {}); }
+    if (u.pathname === '/video/:/transcode/universal/stop') { state.stopped.push(u.searchParams.get('session')); return json(200, {}); }
     throw new TypeError(`unexpected fetch ${url}`);
   }
 
   return { fetchImpl, calls, pins, state, link: (as = username) => { state.linkAs = as; } };
+}
+
+function sampleLibrary() {
+  const ep = (key, s, e, extra = {}) => ({ ratingKey: key, type: 'episode', title: `Ep ${s}x${e}`, grandparentTitle: 'The Bear', grandparentRatingKey: '100', parentIndex: s, index: e, duration: 1_800_000, ...extra });
+  const items = [
+    { ratingKey: '100', type: 'show', title: 'The Bear', year: 2022, score: '0.9' },
+    ep('101', 1, 1, { viewCount: 1 }),
+    ep('102', 1, 2, { viewOffset: 600_000 }),
+    ep('103', 1, 3),
+    { ratingKey: '200', type: 'movie', title: 'Dune', year: 2021, duration: 9_000_000, viewOffset: 3_600_000, score: '0.8' },
+    { ratingKey: '201', type: 'movie', title: 'Dune: Part Two', year: 2024, duration: 9_900_000, score: '0.7' },
+  ];
+  return { items, onDeck: [items[2]] };
 }
 
 const server = (name, id, { owned = true, conns } = {}) => ({

@@ -41,7 +41,14 @@ function respondForStatus(h, st, { justLinked = false, prefix = '' } = {}) {
       const { code } = r.pin;
       render(h, apl.linkDocument({ code }), apl.TOKEN.link);
       rb.withSimpleCard('Link your Plex account', `Go to https://${LINK_URL} and enter code ${code}`);
-      return say(`To link Plex, go to ${LINK_URL} on your phone or computer and enter the code ${spell(code)}. Again, that's ${spell(code)}.${hasScreen(h) ? ' This screen will update when you are done.' : ' Then say: I entered the code.'}`)
+      if (hasScreen(h)) {
+        // No reprompt: a reprompt closes the session when it times out, which
+        // stops the screen's pollLink events. With shouldEndSession left
+        // undefined, the session stays open while the link screen is shown.
+        return say(`To link Plex, go to ${LINK_URL} on your phone or computer and enter the code ${spell(code)}. Again, that's ${spell(code)}. This screen will update when you are done.`)
+          .getResponse();
+      }
+      return say(`To link Plex, go to ${LINK_URL} on your phone or computer and enter the code ${spell(code)}. Again, that's ${spell(code)}. Then say: I entered the code.`)
         .reprompt(`When you have entered the code ${spell(code)} at ${LINK_URL}, say: I entered the code.`)
         .getResponse();
     }
@@ -64,10 +71,10 @@ function respondForStatus(h, st, { justLinked = false, prefix = '' } = {}) {
       render(h, apl.statusDocument({
         title: justLinked ? `Linked${who}` : 'Complexity',
         lines: [`Connected to ${s.name}`],
-        hint: 'Video playback arrives in the next milestone',
+        hint: 'Try: "play The Bear" · "continue watching" · "play the movie Dune"',
       }), apl.TOKEN.status);
       const lead = justLinked ? `You're all set. Plex is linked${who}, and I'll use the server ${s.name}.` : `Connected to ${s.name}.`;
-      return say(`${lead} Video playback is coming soon. You can ask which server I'm using, switch server, or unlink Plex.`)
+      return say(`${lead} What would you like to watch? You can say a movie or show, or continue watching.`)
         .reprompt('What would you like to do?')
         .getResponse();
     }
@@ -207,7 +214,7 @@ const HelpHandler = {
     const st = link.status(rec(h));
     if (st === STATUS.LINKING) return respondForStatus(h, st);
     return h.responseBuilder
-      .speak('Complexity plays video from your Plex server. You can say: which server am I using, switch server, or unlink Plex.')
+      .speak('Complexity plays video from your Plex server. Try: play The Bear, play the movie Dune, play season 2 episode 3 of a show, or continue watching. While a video plays you can say pause, resume, skip forward 30 seconds, go back 10 seconds, next episode, or stop. You can also switch server or unlink Plex.')
       .reprompt('What would you like to do?')
       .getResponse();
   },
@@ -250,10 +257,13 @@ const ErrorHandler = {
   },
 };
 
+const { videoHandlers } = require('./videoHandlers');
+
 const requestHandlers = [
+  ...videoHandlers, // first: playback-specific Stop/SessionEnded take precedence
   LaunchHandler, LinkAccountIntentHandler, CheckLinkIntentHandler, PollLinkEventHandler,
   SelectServerIntentHandler, SwitchServerIntentHandler, LinkStatusIntentHandler, UnlinkIntentHandler,
   HelpHandler, StopHandler, FallbackHandler, SessionEndedHandler, SkillDisabledHandler,
 ];
 
-module.exports = { requestHandlers, ErrorHandler };
+module.exports = { requestHandlers, ErrorHandler, startOrResume };

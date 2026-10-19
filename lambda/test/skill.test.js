@@ -56,7 +56,10 @@ test('launch while unlinked shows and speaks a plex.tv/link code, with screen po
   assert.equal(r.card.type, 'Simple');
   const rec = await store.get(USER);
   assert.ok(rec.pin && rec.device && !rec.token);
-  assert.equal(r.shouldEndSession, false);
+  // Screen devices: no reprompt and shouldEndSession undefined, so the session
+  // (and the screen's pollLink events) survive past the reprompt timeout.
+  assert.equal(r.reprompt, undefined);
+  assert.equal(r.shouldEndSession, undefined);
 });
 
 test('a second launch while linking reuses the same code', async () => {

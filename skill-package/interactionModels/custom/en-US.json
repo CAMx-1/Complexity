@@ -3,11 +3,42 @@
     "languageModel": {
       "invocationName": "complexity",
       "intents": [
-        { "name": "AMAZON.HelpIntent", "samples": [] },
-        { "name": "AMAZON.StopIntent", "samples": [] },
-        { "name": "AMAZON.CancelIntent", "samples": [] },
-        { "name": "AMAZON.NavigateHomeIntent", "samples": [] },
-        { "name": "AMAZON.FallbackIntent", "samples": [] },
+        {
+          "name": "AMAZON.HelpIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.StopIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.CancelIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.NavigateHomeIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.FallbackIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.StartOverIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.NextIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.ResumeIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.PauseIntent",
+          "samples": []
+        },
         {
           "name": "LinkAccountIntent",
           "slots": [],
@@ -43,8 +74,14 @@
         {
           "name": "SelectServerIntent",
           "slots": [
-            { "name": "serverName", "type": "AMAZON.SearchQuery" },
-            { "name": "serverNumber", "type": "AMAZON.NUMBER" }
+            {
+              "name": "serverName",
+              "type": "AMAZON.SearchQuery"
+            },
+            {
+              "name": "serverNumber",
+              "type": "AMAZON.NUMBER"
+            }
           ],
           "samples": [
             "use {serverName}",
@@ -99,16 +136,223 @@
             "disconnect plex",
             "forget my plex account"
           ]
+        },
+        {
+          "name": "PlayVideoIntent",
+          "slots": [
+            {
+              "name": "title",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "play {title}",
+            "watch {title}",
+            "put on {title}",
+            "I want to watch {title}",
+            "let's watch {title}",
+            "show me {title}"
+          ]
+        },
+        {
+          "name": "PlayMovieIntent",
+          "slots": [
+            {
+              "name": "title",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "play the movie {title}",
+            "watch the movie {title}",
+            "put on the movie {title}",
+            "play the film {title}",
+            "play movie {title}"
+          ]
+        },
+        {
+          "name": "PlayShowIntent",
+          "slots": [
+            {
+              "name": "title",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "play the show {title}",
+            "watch the show {title}",
+            "play the series {title}",
+            "play the next episode of {title}"
+          ]
+        },
+        {
+          "name": "PlayEpisodeIntent",
+          "slots": [
+            {
+              "name": "show",
+              "type": "SHOW_TITLE"
+            },
+            {
+              "name": "season",
+              "type": "AMAZON.NUMBER"
+            },
+            {
+              "name": "episode",
+              "type": "AMAZON.NUMBER"
+            }
+          ],
+          "samples": [
+            "play season {season} episode {episode} of {show}",
+            "watch season {season} episode {episode} of {show}",
+            "play {show} season {season} episode {episode}",
+            "play episode {episode} of season {season} of {show}",
+            "watch {show} season {season} episode {episode}",
+            "play {show} s {season} e {episode}"
+          ]
+        },
+        {
+          "name": "ContinueWatchingIntent",
+          "slots": [],
+          "samples": [
+            "continue watching",
+            "keep watching",
+            "resume watching",
+            "pick up where I left off",
+            "what was I watching",
+            "play what's on deck",
+            "play on deck",
+            "resume my show"
+          ]
+        },
+        {
+          "name": "SkipForwardIntent",
+          "slots": [
+            {
+              "name": "duration",
+              "type": "AMAZON.DURATION"
+            }
+          ],
+          "samples": [
+            "skip forward {duration}",
+            "skip ahead {duration}",
+            "fast forward {duration}",
+            "go forward {duration}",
+            "jump ahead {duration}",
+            "skip forward",
+            "skip ahead",
+            "fast forward"
+          ]
+        },
+        {
+          "name": "SkipBackIntent",
+          "slots": [
+            {
+              "name": "duration",
+              "type": "AMAZON.DURATION"
+            }
+          ],
+          "samples": [
+            "go back {duration}",
+            "rewind {duration}",
+            "skip back {duration}",
+            "jump back {duration}",
+            "go back",
+            "rewind",
+            "skip back"
+          ]
         }
       ],
-      "types": []
+      "types": [
+        {
+          "name": "SHOW_TITLE",
+          "values": [
+            {
+              "name": {
+                "value": "The Bear"
+              }
+            },
+            {
+              "name": {
+                "value": "Friends"
+              }
+            },
+            {
+              "name": {
+                "value": "Gilmore Girls"
+              }
+            },
+            {
+              "name": {
+                "value": "The Big Bang Theory"
+              }
+            },
+            {
+              "name": {
+                "value": "Severance"
+              }
+            },
+            {
+              "name": {
+                "value": "The Office"
+              }
+            },
+            {
+              "name": {
+                "value": "Breaking Bad"
+              }
+            },
+            {
+              "name": {
+                "value": "Stranger Things"
+              }
+            },
+            {
+              "name": {
+                "value": "The Last of Us"
+              }
+            },
+            {
+              "name": {
+                "value": "Andor"
+              }
+            },
+            {
+              "name": {
+                "value": "Ted Lasso"
+              }
+            },
+            {
+              "name": {
+                "value": "Succession"
+              }
+            },
+            {
+              "name": {
+                "value": "House of the Dragon"
+              }
+            },
+            {
+              "name": {
+                "value": "The Simpsons"
+              }
+            },
+            {
+              "name": {
+                "value": "Bluey"
+              }
+            }
+          ]
+        }
+      ]
     },
     "dialog": {
       "intents": [
         {
           "name": "UnlinkIntent",
           "confirmationRequired": true,
-          "prompts": { "confirmation": "Confirm.Intent.Unlink" },
+          "prompts": {
+            "confirmation": "Confirm.Intent.Unlink"
+          },
           "slots": []
         }
       ],
@@ -118,7 +362,10 @@
       {
         "id": "Confirm.Intent.Unlink",
         "variations": [
-          { "type": "PlainText", "value": "This removes your Plex sign-in from the skill. Are you sure?" }
+          {
+            "type": "PlainText",
+            "value": "This removes your Plex sign-in from the skill. Are you sure?"
+          }
         ]
       }
     ]

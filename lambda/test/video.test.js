@@ -1,0 +1,193 @@
+'use strict';
+// Video playback through the real skill, against the fake plex.tv + PMS.
+const test = require('node:test');
+const assert = require('node:assert/strict');
+
+const { buildSkill } = require('../index');
+const { memoryStore } = require('../src/store');
+const { fakePlex, server } = require('../testing/fakePlex');
+const { durationMs } = require('../src/videoHandlers');
+
+const USER = 'amzn1.ask.account.VIDEO';
+const REMOTE = 'https://203-0-113-9.bbb.plex.direct:32400';
+const LOCAL = 'https://192-168-1-5.bbb.plex.direct:32400';
+
+function envelope(request, { screen = true, onScreen } = {}) {
+  const context = {
+    System: {
+      application: { applicationId: 'amzn1.ask.skill.test' },
+      user: { userId: USER },
+      device: { deviceId: 'dev1', supportedInterfaces: screen ? { 'Alexa.Presentation.APL': { runtime: { maxVersion: '2024.2' } } } : {} },
+      apiEndpoint: 'https://api.amazonalexa.com',
+    },
+  };
+  if (onScreen) context['Alexa.Presentation.APL'] = { token: onScreen };
+  return {
+    version: '1.0',
+    session: { new: false, sessionId: 's', application: { applicationId: 'amzn1.ask.skill.test' }, user: { userId: USER } },
+    context,
+    request: { requestId: `r-${Math.random()}`, timestamp: new Date().toISOString(), locale: 'en-US', ...request },
+  };
+}
+const intent = (name, slots = {}) => ({ type: 'IntentRequest', intent: { name, confirmationStatus: 'NONE', slots: Object.fromEntries(Object.entries(slots).map(([k, v]) => [k, { name: k, value: v }])) } });
+const ev = (...args) => ({ type: 'Alexa.Presentation.APL.UserEvent', token: 'player', arguments: ['video', ...args] });
+
+async function linked() {
+  const plex = fakePlex({ servers: [server('Basement', 'bbb')], reachable: new Set([REMOTE]) });
+  const store = memoryStore();
+  const skill = buildSkill({ store, fetchImpl: plex.fetchImpl });
+  const send = async (req, env) => (await skill.invoke(envelope(req, env))).response;
+  await send({ type: 'LaunchRequest' });
+  plex.link();
+  await send({ type: 'Alexa.Presentation.APL.UserEvent', token: 'linkScreen', arguments: ['pollLink'] });
+  assert.equal((await store.get(USER)).server.name, 'Basement');
+  return { plex, store, send };
+}
+
+const ssml = (r) => (r.outputSpeech && r.outputSpeech.ssml) || '';
+const render = (r) => (r.directives || []).find((d) => d.type === 'Alexa.Presentation.APL.RenderDocument');
+const videoUrl = (r) => {
+  const find = (n) => (n && typeof n === 'object') ? (n.type === 'Video' ? n : Object.values(n).map(find).find(Boolean)) : null;
+  const v = find(render(r).document);
+  return new URL(v.source[0].url);
+};
+
+test('"play The Bear" plays the in-progress episode from the remote URI with a transient token', async () => {
+  const { send, store } = await linked();
+  const r = await send(intent('PlayVideoIntent', { title: 'the bear' }));
+  assert.match(ssml(r), /Resuming The Bear, season 1 episode 2/);
+  assert.equal(render(r).token, 'player');
+  const u = videoUrl(r);
+  assert.equal(u.origin, REMOTE);
+  assert.equal(u.pathname, '/video/:/transcode/universal/start.m3u8');
+  assert.equal(u.searchParams.get('path'), '/library/metadata/102');
+  assert.equal(u.searchParams.get('offset'), '600');
+  assert.equal(u.searchParams.get('X-Plex-Token'), 'transient-1', 'never the long-lived token');
+  assert.equal(u.searchParams.get('X-Plex-Platform'), 'Generic');
+  assert.equal(r.reprompt, undefined);
+  assert.equal(r.shouldEndSession, undefined, 'session stays open, mic closed');
+  const p = (await store.get(USER)).playback;
+  assert.equal(p.item.ratingKey, '102');
+  assert.equal(p.baseOffsetMs, 600_000);
+});
+
+test('movie resume, "play the movie", and transient token reuse', async () => {
+  const { send, plex } = await linked();
+  const r = await send(intent('PlayMovieIntent', { title: 'dune' }));
+  assert.match(ssml(r), /Resuming Dune from 2021/);
+  assert.equal(videoUrl(r).searchParams.get('offset'), '3600');
+  await send(intent('PlayMovieIntent', { title: 'dune part two' }));
+  assert.equal(plex.state.transientMinted, 1, 'transient token cached on the server record');
+});
+
+test('specific episode, continue watching, and not-found', async () => {
+  const { send } = await linked();
+  const ep = await send(intent('PlayEpisodeIntent', { show: 'the bear', season: '1', episode: '3' }));
+  assert.match(ssml(ep), /Playing The Bear, season 1 episode 3/);
+  assert.equal(videoUrl(ep).searchParams.get('path'), '/library/metadata/103');
+
+  const cont = await send(intent('ContinueWatchingIntent'));
+  assert.match(ssml(cont), /Resuming The Bear, season 1 episode 2/);
+
+  const missing = await send(intent('PlayVideoIntent', { title: 'zzz' }));
+  assert.match(ssml(missing), /couldn't find zzz on Basement/);
+  assert.equal(render(missing), undefined);
+
+  const noEp = await send(intent('PlayEpisodeIntent', { show: 'the bear', season: '9', episode: '9' }));
+  assert.match(ssml(noEp), /doesn't have season 9 episode 9/);
+});
+
+test('progress, pause and stop are reported to Plex with absolute positions', async () => {
+  const { send, store, plex } = await linked();
+  await send(intent('PlayVideoIntent', { title: 'the bear' })); // starts at 600 s
+  const quiet = await send(ev('progress', 30_000));
+  assert.equal(quiet.outputSpeech, undefined);
+  await send(ev('paused', 45_000));
+  const t = plex.state.timeline;
+  assert.deepEqual(t.map((x) => [x.state, x.time, x.ratingKey]), [['playing', '630000', '102'], ['paused', '645000', '102']]);
+
+  const sid = (await store.get(USER)).playback.sessionId;
+  const stop = await send(intent('AMAZON.StopIntent'), { onScreen: 'player' });
+  assert.equal(stop.shouldEndSession, true);
+  assert.equal(plex.state.timeline.at(-1).state, 'stopped');
+  assert.equal(plex.state.timeline.at(-1).time, '645000');
+  assert.ok(plex.state.stopped.includes(sid), 'transcode session stopped');
+  assert.equal((await store.get(USER)).playback, null);
+});
+
+test('failed stream retries on the LAN URI, then explains', async () => {
+  const { send } = await linked();
+  await send(intent('PlayVideoIntent', { title: 'dune' }));
+  const retry = await send(ev('failed'));
+  assert.equal(videoUrl(retry).origin, LOCAL);
+  assert.equal(videoUrl(retry).searchParams.get('offset'), '3600', 'resumes at the last known position');
+  const gaveUp = await send(ev('failed'));
+  assert.match(ssml(gaveUp), /couldn't play that stream from Basement.*Remote Access/);
+  assert.equal(gaveUp.shouldEndSession, true);
+});
+
+test('episode end scrobbles and auto-plays the next one; last episode ends', async () => {
+  const { send, plex } = await linked();
+  await send(intent('PlayEpisodeIntent', { show: 'the bear', season: '1', episode: '2' }));
+  const next = await send(ev('ended', 1_200_000));
+  assert.deepEqual(plex.state.scrobbled, ['102']);
+  assert.match(ssml(next), /Up next: The Bear, season 1 episode 3/);
+  assert.equal(videoUrl(next).searchParams.get('path'), '/library/metadata/103');
+  const end = await send(ev('ended', 1_800_000));
+  assert.match(ssml(end), /That's the end/);
+});
+
+test('voice transport while the player is on screen', async () => {
+  const { send } = await linked();
+  await send(intent('PlayVideoIntent', { title: 'dune' }));
+  const on = { onScreen: 'player' };
+  const cmd = (r) => r.directives[0].commands[0];
+  assert.deepEqual(cmd(await send(intent('AMAZON.PauseIntent'), on)), { type: 'ControlMedia', componentId: 'player', command: 'pause' });
+  assert.equal(cmd(await send(intent('AMAZON.ResumeIntent'), on)).command, 'play');
+  assert.equal(cmd(await send(intent('SkipForwardIntent', { duration: 'PT2M' }), on)).value, 120_000);
+  assert.equal(cmd(await send(intent('SkipBackIntent'), on)).value, -10_000);
+  const over = await send(intent('AMAZON.StartOverIntent'), on);
+  assert.equal(videoUrl(over).searchParams.get('offset'), '0');
+});
+
+test('next episode by voice', async () => {
+  const { send } = await linked();
+  await send(intent('PlayEpisodeIntent', { show: 'the bear', season: '1', episode: '1' }));
+  const r = await send(intent('AMAZON.NextIntent'), { onScreen: 'player' });
+  assert.match(ssml(r), /Next: The Bear, season 1 episode 2/);
+});
+
+test('session end while watching saves the position', async () => {
+  const { send, store, plex } = await linked();
+  await send(intent('PlayVideoIntent', { title: 'dune' }));
+  await send(ev('progress', 60_000));
+  await send({ type: 'SessionEndedRequest', reason: 'USER_INITIATED' });
+  assert.equal(plex.state.timeline.at(-1).state, 'stopped');
+  assert.equal(plex.state.timeline.at(-1).time, '3660000');
+  assert.equal((await store.get(USER)).playback, null);
+});
+
+test('voice-only devices are told video needs a screen; unlinked users get the link flow', async () => {
+  const { send } = await linked();
+  const r = await send(intent('PlayVideoIntent', { title: 'dune' }), { screen: false });
+  assert.match(ssml(r), /needs an Echo device with a screen/);
+
+  const plex = fakePlex();
+  const skill = buildSkill({ store: memoryStore(), fetchImpl: plex.fetchImpl });
+  const fresh = (await skill.invoke(envelope(intent('PlayVideoIntent', { title: 'dune' })))).response;
+  assert.match(ssml(fresh), /plex\.tv\/link/);
+});
+
+test('AMAZON.DURATION parsing', () => {
+  assert.equal(durationMs('PT30S', 1), 30_000);
+  assert.equal(durationMs('PT1M30S', 1), 90_000);
+  assert.equal(durationMs('PT1H', 1), 3_600_000);
+  assert.equal(durationMs(undefined, 10_000), 10_000);
+  assert.equal(durationMs('P1D', 5), 5);
+});
+
+test('transport with nothing playing', async () => {
+  const { send } = await linked();
+  const r = await send(intent('AMAZON.PauseIntent'));
+  assert.match(ssml(r), /Nothing is playing/);
+});
