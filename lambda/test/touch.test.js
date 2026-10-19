@@ -96,3 +96,12 @@ test('tapping a server that vanished re-shows the picker', async () => {
   assert.match(ssml(r), /isn't available any more/);
   assert.equal(doc(r).token, 'servers');
 });
+
+test('"ask complexity player to show home" renders the home screen', async () => {
+  const { send, plex } = setup([server('Basement', 'bbb')]);
+  await send({ type: 'LaunchRequest' });
+  plex.link();
+  await send(tap('pollLink'));
+  const r = await send({ type: 'IntentRequest', intent: { name: 'ShowHomeIntent', confirmationStatus: 'NONE', slots: {} } });
+  assert.equal(doc(r).token, 'home');
+});

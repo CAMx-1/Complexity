@@ -260,6 +260,22 @@
             "rewind",
             "skip back"
           ]
+        },
+        {
+          "name": "ShowHomeIntent",
+          "slots": [],
+          "samples": [
+            "show home",
+            "go home",
+            "show the home screen",
+            "show my shows",
+            "show what I can watch",
+            "show continue watching",
+            "open",
+            "start",
+            "show me my library",
+            "home"
+          ]
         }
       ],
       "types": [

@@ -147,6 +147,12 @@ const LaunchHandler = {
   handle: startOrResume,
 };
 
+/** "Alexa, ask complexity player to show home": same as opening the skill. */
+const ShowHomeIntentHandler = {
+  canHandle: (h) => isIntent(h, 'ShowHomeIntent'),
+  handle: startOrResume,
+};
+
 const LinkAccountIntentHandler = {
   canHandle: (h) => isIntent(h, 'LinkAccountIntent'),
   async handle(h) {
@@ -358,7 +364,7 @@ const { videoHandlers } = require('./videoHandlers');
 
 const requestHandlers = [
   ...videoHandlers, // first: playback-specific Stop/SessionEnded take precedence
-  LaunchHandler, LinkAccountIntentHandler, CheckLinkIntentHandler, PollLinkEventHandler,
+  LaunchHandler, ShowHomeIntentHandler, LinkAccountIntentHandler, CheckLinkIntentHandler, PollLinkEventHandler,
   SelectServerIntentHandler, SwitchServerIntentHandler, LinkStatusIntentHandler, UnlinkIntentHandler,
   ServerTapHandler, HomeTapHandler,
   HelpHandler, StopHandler, FallbackHandler, SessionEndedHandler, SkillDisabledHandler,
