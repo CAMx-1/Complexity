@@ -81,7 +81,7 @@ function renderPlayerNow(h) {
   h.responseBuilder.addDirective({
     type: 'Alexa.Presentation.APL.RenderDocument',
     token: player.TOKEN,
-    document: player.playerDocument({ url: p.url, title: titleFor(item), subtitle: subtitleFor(item), offsetMs: p.startMs }),
+    document: player.playerDocument({ url: p.url, title: titleFor(item), subtitle: subtitleFor(item), offsetMs: p.startMs, ratingKey: item.ratingKey, hasNext: item.type === 'episode' }),
   });
   return h.responseBuilder.getResponse();
 }
@@ -190,11 +190,15 @@ const StopPlaybackHandler = {
   },
 };
 
-/** Session closed while a stream was active: save the position and free the transcoder. */
+/**
+ * Session closed while a stream was active. The Echo keeps playing the video
+ * after the session ends, so only save the position; the stream and our record
+ * stay so later player events (progress, end, Next) still work.
+ */
 const PlaybackSessionEndedHandler = {
   canHandle: (h) => Alexa.getRequestType(h.requestEnvelope) === 'SessionEndedRequest' && !!rec(h).playback,
   async handle(h) {
-    await play.stop(fetchOf(h), rec(h));
+    await play.sessionEnded(fetchOf(h), rec(h));
     return h.responseBuilder.getResponse();
   },
 };
@@ -260,10 +264,10 @@ const LoadTickHandler = {
 const PlayerEventHandler = {
   canHandle: isPlayerEvent,
   async handle(h) {
-    const [, kind, value] = h.requestEnvelope.request.arguments;
+    const [, kind, value, ratingKey] = h.requestEnvelope.request.arguments;
     const r = rec(h);
     if (!r.server || !r.device) return h.responseBuilder.getResponse();
-    const out = await play.onPlayerEvent(fetchOf(h), r, kind, value);
+    const out = await play.onPlayerEvent(fetchOf(h), r, kind, value, ratingKey);
     if (out.action === 'retry') {
       const item = r.playback.item;
       return renderPlayer(h, item, r.playback.lastPosMs, { candidate: out.candidate });
@@ -277,7 +281,13 @@ const PlayerEventHandler = {
     }
     if (out.action === 'ended') {
       if (out.next) return renderPlayer(h, out.next, play.startPosition(out.next), { lead: `Up next: ${lib.describe(out.next)}.` });
-      return h.responseBuilder.speak("That's the end.").withShouldEndSession(true).getResponse();
+      // Back to the home screen rather than a frozen last frame.
+      const { respondForStatus } = require('./handlers');
+      return respondForStatus(h, link.status(r), { prefix: "That's the end. " });
+    }
+    if (out.action === 'next') {
+      if (out.next) return renderPlayer(h, out.next, play.startPosition(out.next), { lead: `Next: ${lib.describe(out.next)}.` });
+      return h.responseBuilder.speak("That's the last episode I have.").getResponse();
     }
     return h.responseBuilder.getResponse(); // keep playing, say nothing
   },

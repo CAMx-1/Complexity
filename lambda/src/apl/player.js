@@ -2,13 +2,18 @@
 // Full-screen APL video player for Echo Show.
 //
 // Tap the video to pause and show the controls: ‹ Back (to the home screen),
-// « 10s, Play, 30s ».
+// « 10s, Play, 30s », and Next episode › for episodes.
 //
 // Events sent to the skill (Alexa.Presentation.APL.UserEvent arguments):
 //   ['nav', 'home']                                Back button
-//   ['video', 'playing'|'paused', currentTimeMs]   on play / pause
-//   ['video', 'progress', currentTimeMs]           every PROGRESS_SECONDS while mounted
-//   ['video', 'ended', currentTimeMs]              track finished
+//   ['video', 'playing'|'paused', currentTimeMs, ratingKey]   on play / pause
+//   ['video', 'progress', currentTimeMs, ratingKey]           every PROGRESS_SECONDS while playing
+//   ['video', 'ended', currentTimeMs, ratingKey]              track finished
+//   ['video', 'next', currentTimeMs, ratingKey]               Next episode button
+// The ratingKey makes every event self-describing: the screen can outlive the
+// skill's session, so the skill must be able to pick playback back up from an
+// event alone (seen on an Echo Show 11: the session ended minutes into an
+// episode and the end-of-episode event arrived with no playback on record).
 //   ['video', 'failed']                            stream could not be played
 // The stream always starts at 0, and resume uses the source `offset`, so
 // currentTime is the absolute position in the title.
@@ -27,7 +32,6 @@ const PROGRESS_SECONDS = 20;
 // a feature film; the skill still ends the session at the end of a title.
 const IDLE_TIMEOUT_MS = 4 * 3600 * 1000;
 
-const send = (...args) => ({ type: 'SendEvent', arguments: ['video', ...args] });
 const media = (command, extra = {}) => ({ type: 'ControlMedia', componentId: PLAYER_ID, command, ...extra });
 
 const button = (label, commands) => ({
@@ -42,7 +46,8 @@ const button = (label, commands) => ({
 /**
  * @param {{ url: string, title: string, subtitle?: string, offsetMs?: number }} p
  */
-function playerDocument({ url, title, subtitle = '', offsetMs = 0 }) {
+function playerDocument({ url, title, subtitle = '', offsetMs = 0, ratingKey = '', hasNext = false }) {
+  const send = (...args) => ({ type: 'SendEvent', arguments: ['video', ...args, String(ratingKey)] });
   return {
     type: 'APL',
     version: APL_VERSION,
@@ -125,6 +130,8 @@ function playerDocument({ url, title, subtitle = '', offsetMs = 0 }) {
                   button('« 10s', [media('seek', { value: -10000 })]),
                   button('Play', [media('play')]),
                   button('30s »', [media('seek', { value: 30000 })]),
+                  // Episodes: skip to the next one (saves this position first).
+                  ...(hasNext ? [button('Next episode ›', [send('next', '${pos}')])] : []),
                 ],
               },
             ],

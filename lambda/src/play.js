@@ -75,9 +75,36 @@ function absolute(rec, ms) {
   return Number.isFinite(t) && t >= 0 ? t : rec.playback.lastPosMs;
 }
 
-/** Handle a player event. Returns an action for the handler: none | ended | retry | exhausted. */
-async function onPlayerEvent(fetchImpl, rec, kind, relMs) {
-  const p = rec.playback;
+const ADOPTABLE = new Set(['playing', 'paused', 'progress', 'ended', 'next']);
+
+/**
+ * The screen can outlive the skill session (and our record of what's playing):
+ * rebuild playback from the item the event names, so progress reporting,
+ * end-of-episode auto-play and Next still work. Returns the playback or null.
+ */
+async function adopt(fetchImpl, rec, kind, ratingKey, pos) {
+  const cur = rec.playback;
+  if (cur && (!ratingKey || cur.item.ratingKey === String(ratingKey))) return cur;
+  if (!ratingKey || !ADOPTABLE.has(kind)) return cur || null;
+  const item = await lib.item(fetchImpl, rec.device, rec.server, String(ratingKey)).catch(() => null);
+  if (!item) return cur || null;
+  rec.playback = {
+    item: { ratingKey: item.ratingKey, type: item.type, title: item.title, year: item.year, showTitle: item.showTitle, showKey: item.showKey, season: item.season, episode: item.episode, durationMs: item.durationMs },
+    sessionId: (cur && cur.sessionId) || null,
+    startMs: 0,
+    lastPosMs: pos,
+    candidate: 0,
+    state: 'playing',
+    resumePending: false,
+    adopted: true,
+  };
+  return rec.playback;
+}
+
+/** Handle a player event. Returns an action for the handler: none | ended | next | retry | exhausted. */
+async function onPlayerEvent(fetchImpl, rec, kind, relMs, ratingKey) {
+  const t = Number(relMs);
+  const p = await adopt(fetchImpl, rec, kind, ratingKey, Number.isFinite(t) && t >= 0 ? t : 0);
   if (!p) return { action: 'none' };
   const { device, server } = rec;
   if (kind === 'failed') {
@@ -102,13 +129,13 @@ async function onPlayerEvent(fetchImpl, rec, kind, relMs) {
     await report(p.state || 'playing');
     return { action: 'none' };
   }
-  if (kind === 'ended') {
+  if (kind === 'ended' || kind === 'next') {
     await report('stopped');
-    await pb.scrobble(fetchImpl, device, server, p.item.ratingKey).catch(() => {});
-    await pb.stopTranscode(fetchImpl, device, server, p.sessionId);
+    if (kind === 'ended') await pb.scrobble(fetchImpl, device, server, p.item.ratingKey).catch(() => {});
+    if (p.sessionId) await pb.stopTranscode(fetchImpl, device, server, p.sessionId);
     const next = await lib.followingEpisode(fetchImpl, device, server, p.item).catch(() => null);
     rec.playback = null;
-    return { action: 'ended', next };
+    return { action: kind, next, from: p.item };
   }
   return { action: 'none' };
 }
@@ -120,8 +147,20 @@ async function stop(fetchImpl, rec) {
   const { device, server } = rec;
   await pb.reportTimeline(fetchImpl, device, server, { ratingKey: p.item.ratingKey, state: 'stopped', timeMs: p.lastPosMs, durationMs: p.item.durationMs, sessionId: p.sessionId }).catch(() => {});
   if (p.item.durationMs && p.lastPosMs >= p.item.durationMs * WATCHED_FRACTION) await pb.scrobble(fetchImpl, device, server, p.item.ratingKey).catch(() => {});
-  await pb.stopTranscode(fetchImpl, device, server, p.sessionId);
+  if (p.sessionId) await pb.stopTranscode(fetchImpl, device, server, p.sessionId);
   rec.playback = null;
 }
 
-module.exports = { resolve, startPosition, start, absolute, onPlayerEvent, stop, RESUME_MIN_MS, WATCHED_FRACTION };
+/**
+ * The skill session ended, but the video may still be on screen and playing:
+ * Echo devices keep an APL video going after the session closes. Save the
+ * position (as paused, so Continue Watching is right if it really stopped) and
+ * keep the stream and our record, so later events can carry on.
+ */
+async function sessionEnded(fetchImpl, rec) {
+  const p = rec.playback;
+  if (!p) return;
+  await pb.reportTimeline(fetchImpl, rec.device, rec.server, { ratingKey: p.item.ratingKey, state: 'paused', timeMs: p.lastPosMs, durationMs: p.item.durationMs, sessionId: p.sessionId }).catch(() => {});
+}
+
+module.exports = { resolve, startPosition, start, absolute, onPlayerEvent, stop, sessionEnded, RESUME_MIN_MS, WATCHED_FRACTION };

@@ -173,14 +173,47 @@ test('next episode by voice', async () => {
   assert.match(ssml(r), /Next: The Bear, season 1 episode 2/);
 });
 
-test('session end while watching saves the position', async () => {
+test('session end while watching saves the position but keeps playback (the Echo keeps playing)', async () => {
   const { send, store, plex } = await linked();
   await through(send, intent('PlayVideoIntent', { title: 'dune' }));
   await send(ev('progress', 3_660_000));
   await send({ type: 'SessionEndedRequest', reason: 'USER_INITIATED' });
-  assert.equal(plex.state.timeline.at(-1).state, 'stopped');
+  assert.equal(plex.state.timeline.at(-1).state, 'paused');
   assert.equal(plex.state.timeline.at(-1).time, '3660000');
-  assert.equal((await store.get(USER)).playback, null);
+  const p = (await store.get(USER)).playback;
+  assert.ok(p && p.item.ratingKey === '200', 'record kept for later events');
+  assert.equal(plex.state.stopped.length, 0, 'transcode left running');
+});
+
+test('events after the session (and record) are gone still auto-play the next episode', async () => {
+  const { send, store, plex } = await linked();
+  await through(send, intent('PlayEpisodeIntent', { show: 'the bear', season: '1', episode: '2' }));
+  const rec = await store.get(USER);
+  rec.playback = null; // as if a previous build had discarded it on SessionEnded
+  await store.put(USER, rec);
+  await send(ev('progress', 1_500_000, '102'));
+  assert.equal(plex.state.timeline.at(-1).ratingKey, '102', 'progress reported from the event alone');
+  const next = await send(ev('ended', 1_800_000, '102'));
+  assert.deepEqual(plex.state.scrobbled, ['102']);
+  assert.match(ssml(next), /Up next: The Bear, season 1 episode 3/);
+  assert.equal(render(next).token, 'loading');
+});
+
+test('Next episode button: saves position, skips without scrobbling, plays the next one', async () => {
+  const { send, plex } = await linked();
+  const r = await through(send, intent('PlayEpisodeIntent', { show: 'the bear', season: '1', episode: '1' }));
+  const find = (n, out = []) => { if (n && typeof n === 'object') { if (n.type === 'TouchWrapper' && JSON.stringify(n).includes('Next episode')) out.push(n); Object.values(n).forEach((x) => find(x, out)); } return out; };
+  const btn = find(render(r).document);
+  assert.equal(btn.length, 1, 'button shown for episodes');
+  assert.deepEqual(btn[0].onPress[0].arguments, ['video', 'next', '${pos}', '101']);
+  const n = await send(ev('next', 900_000, '101'));
+  assert.match(ssml(n), /Next: The Bear, season 1 episode 2/);
+  assert.equal(plex.state.timeline.at(-1).state, 'stopped');
+  assert.equal(plex.state.timeline.at(-1).time, '900000');
+  assert.deepEqual(plex.state.scrobbled, [], 'skipping is not watching');
+
+  const movie = await through(send, intent('PlayMovieIntent', { title: 'dune' }));
+  assert.equal(find(render(movie).document).length, 0, 'no Next button for movies');
 });
 
 test('voice-only devices are told video needs a screen; unlinked users get the link flow', async () => {
@@ -285,7 +318,7 @@ test('player progress loop is started from onPlay (survives voice commands)', as
   const v = videoNode(r);
   const loop = v.onPlay.find((c) => c.type === 'Sequential');
   assert.ok(loop, 'loop in onPlay');
-  assert.deepEqual(loop.commands[1].arguments, ['video', 'progress', '${pos}']);
+  assert.deepEqual(loop.commands[1].arguments, ['video', 'progress', '${pos}', '200'], 'events name the item');
   assert.equal(render(r).document.mainTemplate.items[0].onMount, undefined, 'no onMount loop that ExecuteCommands would kill');
 });
 

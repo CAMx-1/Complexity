@@ -371,4 +371,4 @@ const requestHandlers = [
   AplRuntimeErrorHandler, ExceptionEncounteredHandler,
 ];
 
-module.exports = { requestHandlers, ErrorHandler, startOrResume };
+module.exports = { requestHandlers, ErrorHandler, startOrResume, respondForStatus };
