@@ -94,6 +94,9 @@ function fakePlex({ servers = [], reachable = new Set(), username = 'cam', libra
     if (u.pathname === '/video/:/transcode/universal/start.m3u8') {
       const t = u.searchParams.get('X-Plex-Token') || '';
       if (!t.startsWith('transient-')) return raw(401, 'Unauthorized');
+      // Real PMS: an X-Plex-Platform header overrides the query; unknown platforms give 400.
+      const plat = h['X-Plex-Platform'] || u.searchParams.get('X-Plex-Platform');
+      if (plat !== 'Generic') return raw(400, 'Bad Request');
       if (state.startDelays > 0) { state.startDelays -= 1; throw Object.assign(new Error('The operation was aborted due to timeout'), { name: 'TimeoutError' }); }
       const sid = u.searchParams.get('session');
       state.sessions.add(sid);

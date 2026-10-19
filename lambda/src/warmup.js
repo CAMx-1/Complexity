@@ -70,24 +70,23 @@ async function tick(fetchImpl, rec, now = Date.now()) {
   if (w.phase === 'ready') return view(w);
   if (now - w.startedAt > GIVE_UP_MS) { w.phase = 'failed'; return { ...view(w), failed: true }; }
   w.tries += 1;
-  const clientId = rec.device.clientId;
   try {
     if (w.phase === 'start') {
-      const r = await plexRaw(fetchImpl, w.startUrl, { clientId, timeoutMs: STEP_TIMEOUT_MS });
+      const r = await plexRaw(fetchImpl, w.startUrl, { timeoutMs: STEP_TIMEOUT_MS });
       if (!r.ok) throw Object.assign(new Error(`start ${r.status}`), { status: r.status });
       const sub = r.text.split('\n').map((l) => l.trim()).find((l) => l && !l.startsWith('#'));
       if (!sub) throw new Error('no variant in master playlist');
       w.indexUrl = dirOf(w.startUrl.split('?')[0]) + sub;
       advance(w, 'index');
     } else if (w.phase === 'index') {
-      const r = await plexRaw(fetchImpl, w.indexUrl, { clientId, timeoutMs: STEP_TIMEOUT_MS });
+      const r = await plexRaw(fetchImpl, w.indexUrl, { timeoutMs: STEP_TIMEOUT_MS });
       if (!r.ok) throw Object.assign(new Error(`index ${r.status}`), { status: r.status });
       const seg = segmentFor(r.text, w.startMs / 1000);
       if (!seg) throw new Error('empty media playlist');
       w.segmentUrl = dirOf(w.indexUrl) + seg;
       advance(w, 'segment');
     } else if (w.phase === 'segment') {
-      const r = await plexRaw(fetchImpl, w.segmentUrl, { clientId, headers: { Range: 'bytes=0-1023' }, timeoutMs: STEP_TIMEOUT_MS });
+      const r = await plexRaw(fetchImpl, w.segmentUrl, { headers: { Range: 'bytes=0-1023' }, timeoutMs: STEP_TIMEOUT_MS });
       if ((r.status === 206 || r.status === 200) && r.text.length > 0) advance(w, 'ready');
       else throw Object.assign(new Error(`segment ${r.status}`), { status: r.status });
     }

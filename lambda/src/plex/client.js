@@ -56,14 +56,16 @@ async function plexRequest(fetchImpl, url, { method = 'GET', clientId, token, bo
 module.exports = { PRODUCT, VERSION, PLEX_TV, PlexError, plexHeaders, plexRequest, plexRaw };
 
 /**
- * Raw GET for playlists and segment probes. The URL already carries its
- * credential (transient token or session path). Returns { status, text }.
- * Throws on network errors and timeouts.
+ * Raw GET for playlists and segment probes, sent the way the Echo's player
+ * sends them: no X-Plex-* headers. PMS lets headers override the URL's
+ * parameters, and X-Plex-Platform "Alexa" turns start.m3u8 into HTTP 400.
+ * The URL already carries its credential (transient token or session path).
+ * Returns { status, ok, text }; throws on network errors and timeouts.
  */
-async function plexRaw(fetchImpl, url, { clientId, headers = {}, timeoutMs = 4000 } = {}) {
+async function plexRaw(fetchImpl, url, { headers = {}, timeoutMs = 4000 } = {}) {
   const res = await fetchImpl(url, {
     method: 'GET',
-    headers: { ...plexHeaders(clientId), Accept: '*/*', ...headers },
+    headers: { Accept: '*/*', ...headers },
     signal: typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(timeoutMs) : undefined,
     timeoutMs,
   });
