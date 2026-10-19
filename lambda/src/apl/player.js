@@ -44,8 +44,6 @@ function playerDocument({ url, title, subtitle = '', offsetMs = 0 }) {
         width: '100vw',
         height: '100vh',
         bind: [{ name: 'pos', value: 0, type: 'number' }, { name: 'paused', value: false, type: 'boolean' }],
-        // Periodic progress so Plex's Continue Watching survives "Alexa, stop" or a closed session.
-        onMount: [{ type: 'Sequential', repeatCount: 100000, commands: [{ type: 'Idle', delay: PROGRESS_SECONDS * 1000 }, send('progress', '${pos}')] }],
         items: [
           { type: 'Frame', position: 'absolute', width: '100vw', height: '100vh', backgroundColor: '#000000' },
           {
@@ -58,7 +56,13 @@ function playerDocument({ url, title, subtitle = '', offsetMs = 0 }) {
             autoplay: true,
             audioTrack: 'foreground',
             source: [{ url, description: title, offset: Math.max(0, Math.round(offsetMs)) }],
-            onPlay: [{ type: 'SetValue', componentId: ROOT_ID, property: 'paused', value: false }, send('playing', '${event.currentTime}')],
+            // The progress loop starts from onPlay: voice commands (ExecuteCommands)
+            // cancel running sequences, and every resume fires onPlay again.
+            onPlay: [
+              { type: 'SetValue', componentId: ROOT_ID, property: 'paused', value: false },
+              send('playing', '${event.currentTime}'),
+              { type: 'Sequential', repeatCount: 100000, commands: [{ type: 'Idle', delay: PROGRESS_SECONDS * 1000 }, send('progress', '${pos}')] },
+            ],
             onPause: [{ type: 'SetValue', componentId: ROOT_ID, property: 'paused', value: true }, send('paused', '${event.currentTime}')],
             onEnd: [send('ended', '${event.currentTime}')],
             onTimeUpdate: [{ type: 'SetValue', componentId: ROOT_ID, property: 'pos', value: '${event.currentTime}' }],

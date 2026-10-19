@@ -221,14 +221,20 @@ test('play shows a loading screen at once, then the bar moves while the server w
   const doc = render(first);
   assert.equal(doc.token, 'loading', 'loading screen first, no waiting on Plex');
   assert.ok(!plex.calls.some((c) => c.path === '/video/:/transcode/universal/start.m3u8'), 'stream not touched in the first response');
-  assert.equal(doc.document.onMount[0].commands[1].arguments[1], 'tick');
+  assert.deepEqual(doc.document.onMount.map((c) => c.type), ['Idle', 'SendEvent'], 'first tick from onMount');
+  assert.equal(doc.document.onMount[1].arguments[1], 'tick');
 
   const pcts = [];
   let r;
   for (let i = 0; i < 8; i++) {
     r = await send(tick());
     const set = (r.directives || []).find((d) => d.type === 'Alexa.Presentation.APL.ExecuteCommands');
-    if (set) pcts.push(set.commands[0].value);
+    if (set) {
+      pcts.push(set.commands[0].value);
+      // ExecuteCommands cancels the screen's running commands, so each reply must schedule the next tick.
+      assert.deepEqual(set.commands.slice(-2).map((c) => c.type), ['Idle', 'SendEvent']);
+      assert.deepEqual(set.commands.at(-1).arguments, ['load', 'tick']);
+    }
     if (render(r)) break;
   }
   assert.ok(pcts.length >= 3, `progress updates: ${pcts}`);
@@ -268,4 +274,14 @@ test('segmentFor picks the segment covering a time', () => {
   assert.equal(segmentFor(pl, 19.9), '00001.ts');
   assert.equal(segmentFor(pl, 22), '00002.ts');
   assert.equal(segmentFor(pl, 999), '00002.ts', 'past the end: last segment');
+});
+
+test('player progress loop is started from onPlay (survives voice commands)', async () => {
+  const { send } = await linked();
+  const r = await through(send, intent('PlayMovieIntent', { title: 'dune' }));
+  const v = videoNode(r);
+  const loop = v.onPlay.find((c) => c.type === 'Sequential');
+  assert.ok(loop, 'loop in onPlay');
+  assert.deepEqual(loop.commands[1].arguments, ['video', 'progress', '${pos}']);
+  assert.equal(render(r).document.mainTemplate.items[0].onMount, undefined, 'no onMount loop that ExecuteCommands would kill');
 });

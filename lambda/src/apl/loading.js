@@ -1,13 +1,20 @@
 'use strict';
-// Loading screen shown while the stream warms up. It ticks the skill every
-// TICK_MS with ['load', 'tick']; the skill answers with SetValue commands that
-// move the bar, then swaps in the player when the stream is ready.
+// Loading screen shown while the stream warms up. It ticks the skill with
+// ['load', 'tick']; the skill answers with SetValue commands that move the bar
+// and schedule the next tick, then swaps in the player when the stream is ready.
+//
+// Why the reply schedules the next tick: an ExecuteCommands directive cancels
+// whatever is running on the screen's main command sequence, including an
+// onMount repeat loop. Seen on an Echo Show 11: only the first tick arrived.
 
 const { APL_VERSION } = require('./link');
 
 const TOKEN = 'loading';
 const ROOT_ID = 'loadRoot';
 const TICK_MS = 3500;
+const FIRST_TICK_MS = 1500;
+
+const nextTick = (delay = TICK_MS) => [{ type: 'Idle', delay }, { type: 'SendEvent', arguments: ['load', 'tick'] }];
 
 const ACCENT = '#e5a00d';
 
@@ -16,11 +23,7 @@ function loadingDocument({ title, subtitle = '', posterUrl, artUrl, pct = 3, lab
     type: 'APL',
     version: APL_VERSION,
     theme: 'dark',
-    onMount: [{
-      type: 'Sequential',
-      repeatCount: 34, // ~2 minutes at most
-      commands: [{ type: 'Idle', delay: TICK_MS }, { type: 'SendEvent', arguments: ['load', 'tick'] }],
-    }],
+    onMount: nextTick(FIRST_TICK_MS),
     mainTemplate: {
       parameters: [],
       items: [{
@@ -85,8 +88,9 @@ function progressDirective(pct, label) {
     commands: [
       { type: 'SetValue', componentId: ROOT_ID, property: 'pct', value: pct },
       { type: 'SetValue', componentId: ROOT_ID, property: 'label', value: label },
+      ...nextTick(),
     ],
   };
 }
 
-module.exports = { TOKEN, TICK_MS, loadingDocument, progressDirective };
+module.exports = { TOKEN, TICK_MS, FIRST_TICK_MS, loadingDocument, progressDirective };
