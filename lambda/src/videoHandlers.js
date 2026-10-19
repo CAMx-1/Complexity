@@ -199,6 +199,20 @@ const PlaybackSessionEndedHandler = {
   },
 };
 
+/** ‹ Back button (player / loading) or "back to the menu": save, stop, show the home screen. */
+const BackToHomeHandler = {
+  canHandle: (h) => (Alexa.getRequestType(h.requestEnvelope) === 'Alexa.Presentation.APL.UserEvent'
+      && (h.requestEnvelope.request.arguments || [])[0] === 'nav'
+      && (h.requestEnvelope.request.arguments || [])[1] === 'home')
+    || isIntent(h, 'BackToMenuIntent'),
+  async handle(h) {
+    const { startOrResume } = require('./handlers');
+    const r = rec(h);
+    if (r.playback) await play.stop(fetchOf(h), r);
+    return startOrResume(h);
+  },
+};
+
 const HomePlayTapHandler = {
   canHandle: (h) => Alexa.getRequestType(h.requestEnvelope) === 'Alexa.Presentation.APL.UserEvent'
     && (h.requestEnvelope.request.arguments || [])[0] === 'home'
@@ -276,7 +290,7 @@ const NothingPlayingHandler = {
 };
 
 const videoHandlers = [
-  HomePlayTapHandler, LoadTickHandler, PlayerEventHandler, PauseResumeHandler, SeekHandler, StartOverHandler, NextEpisodeHandler,
+  BackToHomeHandler, HomePlayTapHandler, LoadTickHandler, PlayerEventHandler, PauseResumeHandler, SeekHandler, StartOverHandler, NextEpisodeHandler,
   StopPlaybackHandler, PlaybackSessionEndedHandler,
   PlayVideoIntentHandler, PlayEpisodeIntentHandler, ContinueWatchingIntentHandler, NothingPlayingHandler,
 ];

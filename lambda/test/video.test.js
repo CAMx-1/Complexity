@@ -62,7 +62,10 @@ const videoNode = (r) => {
   return find(render(r).document);
 };
 const videoUrl = (r) => new URL(videoNode(r).source[0].url);
-const startOffset = (r) => videoNode(r).source[0].offset;
+const startOffset = (r) => {
+  const root = render(r).document.mainTemplate.items[0];
+  return root.bind.find((b) => b.name === 'resumeAt').value;
+};
 
 test('"play The Bear" plays the in-progress episode from the remote URI with a transient token', async () => {
   const { send, store, plex } = await linked();
@@ -241,7 +244,7 @@ test('play shows a loading screen at once, then the bar moves while the server w
   assert.deepEqual([...pcts].sort((a, b) => a - b), pcts, 'percentage only goes up');
   assert.equal(render(r).token, 'player');
   assert.equal(plex.state.segmentsRequested.at(-1), '00060.ts', 'warmed the segment covering the 600 s resume point');
-  assert.equal(videoNode(r).source[0].offset, 600_000);
+  assert.equal(startOffset(r), 600_000, 'resume point handed to the player');
 });
 
 test('loading gives up after the deadline with a clear message', async () => {
@@ -284,4 +287,47 @@ test('player progress loop is started from onPlay (survives voice commands)', as
   assert.ok(loop, 'loop in onPlay');
   assert.deepEqual(loop.commands[1].arguments, ['video', 'progress', '${pos}']);
   assert.equal(render(r).document.mainTemplate.items[0].onMount, undefined, 'no onMount loop that ExecuteCommands would kill');
+});
+
+test('back button (and "go back") saves the position, stops the stream and shows home', async () => {
+  const { send, store, plex } = await linked();
+  await through(send, intent('PlayMovieIntent', { title: 'dune' }));
+  await send(ev('progress', 3_700_000));
+  const sid = (await store.get(USER)).playback.sessionId;
+  const r = await send({ type: 'Alexa.Presentation.APL.UserEvent', token: 'player', arguments: ['nav', 'home'] });
+  assert.equal(render(r).token, 'home');
+  assert.equal(plex.state.timeline.at(-1).state, 'stopped');
+  assert.equal(plex.state.timeline.at(-1).time, '3700000');
+  assert.ok(plex.state.stopped.includes(sid));
+  assert.equal((await store.get(USER)).playback, null);
+
+  await through(send, intent('PlayMovieIntent', { title: 'dune' }));
+  const v = await send(intent('BackToMenuIntent'), { onScreen: 'player' });
+  assert.equal(render(v).token, 'home');
+
+  // From the loading screen too
+  await send(intent('PlayMovieIntent', { title: 'dune' }));
+  const l = await send({ type: 'Alexa.Presentation.APL.UserEvent', token: 'loading', arguments: ['nav', 'home'] });
+  assert.equal(render(l).token, 'home');
+  assert.equal((await store.get(USER)).playback, null);
+});
+
+test('player and loading screens both have a Back button', () => {
+  const find = (n, out = []) => { if (n && typeof n === 'object') { if (n.type === 'TouchWrapper' && JSON.stringify(n.onPress) === JSON.stringify([{ type: 'SendEvent', arguments: ['nav', 'home'] }])) out.push(n); Object.values(n).forEach((x) => find(x, out)); } return out; };
+  assert.equal(find(require('../src/apl/player').playerDocument({ url: 'u', title: 't' })).length, 1);
+  assert.equal(find(require('../src/apl/loading').loadingDocument({ title: 't' })).length, 1);
+});
+
+test('resume is a one-time relative seek on the first onPlay', async () => {
+  const { send } = await linked();
+  const r = await through(send, intent('PlayMovieIntent', { title: 'dune' }));
+  const v = videoNode(r);
+  assert.equal(v.source[0].offset, undefined, 'no source offset (ignored on Echo Show 11)');
+  const seek = v.onPlay[0];
+  assert.equal(seek.type, 'ControlMedia');
+  assert.equal(seek.command, 'seek');
+  assert.equal(seek.value, '${resumeAt - event.currentTime}');
+  assert.match(seek.when, /resumeAt > 0/);
+  assert.deepEqual(v.onPlay[1], { type: 'SetValue', componentId: 'root', property: 'resumeAt', value: 0 }, 'only once');
+  assert.equal(startOffset(r), 3_600_000);
 });

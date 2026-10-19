@@ -1,7 +1,11 @@
 'use strict';
 // Full-screen APL video player for Echo Show.
 //
+// Tap the video to pause and show the controls: ‹ Back (to the home screen),
+// « 10s, Play, 30s ».
+//
 // Events sent to the skill (Alexa.Presentation.APL.UserEvent arguments):
+//   ['nav', 'home']                                Back button
 //   ['video', 'playing'|'paused', currentTimeMs]   on play / pause
 //   ['video', 'progress', currentTimeMs]           every PROGRESS_SECONDS while mounted
 //   ['video', 'ended', currentTimeMs]              track finished
@@ -10,6 +14,7 @@
 // currentTime is the absolute position in the title.
 
 const { APL_VERSION } = require('./link');
+const { backButton } = require('./ui');
 
 const TOKEN = 'player';
 const PLAYER_ID = 'player';
@@ -43,7 +48,13 @@ function playerDocument({ url, title, subtitle = '', offsetMs = 0 }) {
         id: ROOT_ID,
         width: '100vw',
         height: '100vh',
-        bind: [{ name: 'pos', value: 0, type: 'number' }, { name: 'paused', value: false, type: 'boolean' }],
+        bind: [
+          { name: 'pos', value: 0, type: 'number' },
+          { name: 'paused', value: false, type: 'boolean' },
+          // Resume: the Echo Show 11 ignored the source `offset` and started at 0,
+          // so we seek once on the first onPlay instead.
+          { name: 'resumeAt', value: Math.max(0, Math.round(offsetMs)), type: 'number' },
+        ],
         items: [
           { type: 'Frame', position: 'absolute', width: '100vw', height: '100vh', backgroundColor: '#000000' },
           {
@@ -55,10 +66,12 @@ function playerDocument({ url, title, subtitle = '', offsetMs = 0 }) {
             scale: 'best-fit',
             autoplay: true,
             audioTrack: 'foreground',
-            source: [{ url, description: title, offset: Math.max(0, Math.round(offsetMs)) }],
+            source: [{ url, description: title }],
             // The progress loop starts from onPlay: voice commands (ExecuteCommands)
             // cancel running sequences, and every resume fires onPlay again.
             onPlay: [
+              { type: 'ControlMedia', componentId: PLAYER_ID, command: 'seek', value: '${resumeAt - event.currentTime}', when: '${resumeAt > 0 && event.currentTime < resumeAt - 5000}' },
+              { type: 'SetValue', componentId: ROOT_ID, property: 'resumeAt', value: 0 },
               { type: 'SetValue', componentId: ROOT_ID, property: 'paused', value: false },
               send('playing', '${event.currentTime}'),
               { type: 'Sequential', repeatCount: 100000, commands: [{ type: 'Idle', delay: PROGRESS_SECONDS * 1000 }, send('progress', '${pos}')] },
@@ -87,10 +100,16 @@ function playerDocument({ url, title, subtitle = '', offsetMs = 0 }) {
             justifyContent: 'spaceBetween',
             items: [
               {
-                type: 'Container', paddingLeft: '5vw', paddingTop: '5vh', paddingRight: '5vw', backgroundColor: 'rgba(0,0,0,0.45)', paddingBottom: '3vh',
+                type: 'Container', direction: 'row', alignItems: 'center', paddingLeft: '4vw', paddingTop: '4vh', paddingRight: '5vw', backgroundColor: 'rgba(0,0,0,0.45)', paddingBottom: '3vh',
                 items: [
-                  { type: 'Text', text: title, fontSize: '5vh', color: '#ffffff', fontWeight: 'bold', maxLines: 1 },
-                  { type: 'Text', text: subtitle, fontSize: '3.4vh', color: '#c9ced8', maxLines: 1 },
+                  backButton(),
+                  {
+                    type: 'Container', grow: 1, shrink: 1, paddingLeft: '2vw',
+                    items: [
+                      { type: 'Text', text: title, fontSize: '5vh', color: '#ffffff', fontWeight: 'bold', maxLines: 1 },
+                      { type: 'Text', text: subtitle, fontSize: '3.4vh', color: '#c9ced8', maxLines: 1 },
+                    ],
+                  },
                 ],
               },
               {

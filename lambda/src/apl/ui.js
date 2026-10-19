@@ -62,4 +62,17 @@ function posterTile({ image, title, caption = '', args, progress }) {
   };
 }
 
-module.exports = { BG, ACCENT, LOGO, graphics, logo, button, posterTile };
+/** "‹ Back" pill: saves the position, stops the stream, returns to the home screen. */
+function backButton() {
+  return {
+    type: 'TouchWrapper',
+    onPress: [{ type: 'SendEvent', arguments: ['nav', 'home'] }],
+    item: {
+      type: 'Frame', backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: '5vh', borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)',
+      paddingLeft: '2.4vw', paddingRight: '2.6vw', paddingTop: '1.4vh', paddingBottom: '1.4vh',
+      item: { type: 'Text', text: '‹  Back', fontSize: '3.6vh', fontWeight: 'bold', color: '#ffffff' },
+    },
+  };
+}
+
+module.exports = { BG, ACCENT, LOGO, graphics, logo, button, posterTile, backButton };

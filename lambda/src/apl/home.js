@@ -35,7 +35,7 @@ function homeDocument({ serverName, username, multipleServers = false, onDeck = 
       {
         type: 'Container', paddingLeft: '2vw', grow: 1,
         items: [
-          { type: 'Text', text: 'Complexity', fontSize: '5.5vh', fontWeight: 'bold', color: '#ffffff' },
+          { type: 'Text', text: 'Complexity Player', fontSize: '5.5vh', fontWeight: 'bold', color: '#ffffff' },
           { type: 'Text', text: `Connected to ${serverName}${username ? ` · ${username}` : ''}`, fontSize: '3vh', color: '#9aa1b2', maxLines: 1 },
         ],
       },

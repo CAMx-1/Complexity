@@ -60,6 +60,7 @@ async function start(fetchImpl, rec, item, offsetMs, { candidate = 0 } = {}) {
     item: { ratingKey: item.ratingKey, type: item.type, title: item.title, year: item.year, showTitle: item.showTitle, showKey: item.showKey, season: item.season, episode: item.episode, durationMs: item.durationMs },
     sessionId,
     startMs: offsetMs,
+    resumePending: offsetMs > 0, // until the player reports a position near startMs
     lastPosMs: offsetMs,
     candidate,
     state: 'playing',
@@ -84,8 +85,13 @@ async function onPlayerEvent(fetchImpl, rec, kind, relMs) {
     return next < pb.streamCandidates(server).length ? { action: 'retry', candidate: next } : { action: 'exhausted' };
   }
   const pos = absolute(rec, relMs);
-  // Ignore an early 0 (before the player has applied the start offset).
-  if (pos > 0 || p.startMs === 0) p.lastPosMs = pos;
+  // Before the resume seek lands the player reports positions near 0. Recording
+  // or reporting those would overwrite Plex's resume point (seen on device).
+  if (p.resumePending) {
+    if (pos >= p.startMs - 5000) p.resumePending = false;
+    else if (kind !== 'ended') return { action: 'none' };
+  }
+  p.lastPosMs = pos;
   const report = (state) => pb.reportTimeline(fetchImpl, device, server, { ratingKey: p.item.ratingKey, state, timeMs: p.lastPosMs, durationMs: p.item.durationMs, sessionId: p.sessionId }).catch(() => {});
   if (kind === 'playing' || kind === 'paused') {
     p.state = kind;

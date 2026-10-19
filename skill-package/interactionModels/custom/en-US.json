@@ -256,7 +256,6 @@
             "rewind {duration}",
             "skip back {duration}",
             "jump back {duration}",
-            "go back",
             "rewind",
             "skip back"
           ]
@@ -275,6 +274,22 @@
             "start",
             "show me my library",
             "home"
+          ]
+        },
+        {
+          "name": "BackToMenuIntent",
+          "slots": [],
+          "samples": [
+            "go back",
+            "back",
+            "back to the menu",
+            "back to menu",
+            "main menu",
+            "go to the main menu",
+            "back to the home screen",
+            "exit the video",
+            "stop watching and go back",
+            "close the video"
           ]
         }
       ],

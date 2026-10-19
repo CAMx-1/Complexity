@@ -8,6 +8,7 @@
 // onMount repeat loop. Seen on an Echo Show 11: only the first tick arrived.
 
 const { APL_VERSION } = require('./link');
+const { backButton } = require('./ui');
 
 const TOKEN = 'loading';
 const ROOT_ID = 'loadRoot';
@@ -74,6 +75,8 @@ function loadingDocument({ title, subtitle = '', posterUrl, artUrl, pct = 3, lab
               },
             ],
           },
+          // Drawn last so it sits above the content and receives taps.
+          { type: 'Container', position: 'absolute', left: '4vw', top: '4vh', items: [backButton()] },
         ],
       }],
     },
