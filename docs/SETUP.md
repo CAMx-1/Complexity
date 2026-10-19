@@ -46,16 +46,23 @@ git fetch alexa
 
 ## 3. Deploy
 
-**Manifest and voice model** go through SMAPI. `skill.json` already has the
-hosted Lambda endpoints and the SKILL_DISABLED subscription.
+**Manifest, voice model and icons** go through SMAPI as a skill package.
+`skill.json` already has the hosted Lambda endpoints and the SKILL_DISABLED
+subscription. The icons are `file://assets/images/…` in the manifest, and the
+import uploads them to Amazon's CDN. `update-skill-manifest` can't resolve
+`file://` URIs, so use the package import:
 
 ```sh
 S=<skill id>
-ask smapi update-skill-manifest -s $S -g development --manifest file:skill-package/skill.json
-ask smapi set-interaction-model -s $S -g development -l en-US \
-  --interaction-model file:skill-package/interactionModels/custom/en-US.json
-ask smapi get-skill-status -s $S     # wait for SUCCEEDED
+(cd skill-package && rm -f /tmp/skill-package.zip && zip -qr /tmp/skill-package.zip skill.json interactionModels assets)
+U=$(ask smapi create-upload-url | python3 -c "import json,sys;print(json.load(sys.stdin)['uploadUrl'])")
+curl -s -X PUT -T /tmp/skill-package.zip "$U"
+ask smapi import-skill-package --skill-id $S --location "$U"   # then: ask smapi get-import-status --import-id …
 ```
+
+For a voice-model-only change, `ask smapi set-interaction-model -s $S -g development -l en-US --interaction-model file:skill-package/interactionModels/custom/en-US.json`
+is quicker. To change the icon, edit the logo in `lambda/src/apl/ui.js`, then
+run `scripts/render-icons.mjs` (it needs Playwright) and import again.
 
 **Code** goes by git push to the hosted repo's `master` branch, which deploys
 to Development. That repo has its own history (the template's initial
