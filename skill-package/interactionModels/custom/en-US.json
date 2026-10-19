@@ -1,0 +1,126 @@
+{
+  "interactionModel": {
+    "languageModel": {
+      "invocationName": "complexity",
+      "intents": [
+        { "name": "AMAZON.HelpIntent", "samples": [] },
+        { "name": "AMAZON.StopIntent", "samples": [] },
+        { "name": "AMAZON.CancelIntent", "samples": [] },
+        { "name": "AMAZON.NavigateHomeIntent", "samples": [] },
+        { "name": "AMAZON.FallbackIntent", "samples": [] },
+        {
+          "name": "LinkAccountIntent",
+          "slots": [],
+          "samples": [
+            "link plex",
+            "link my plex",
+            "link my plex account",
+            "sign in to plex",
+            "sign in",
+            "log in to plex",
+            "connect plex",
+            "connect my plex account",
+            "set up plex"
+          ]
+        },
+        {
+          "name": "CheckLinkIntent",
+          "slots": [],
+          "samples": [
+            "I entered the code",
+            "I typed the code",
+            "I put in the code",
+            "I'm done",
+            "done",
+            "I did it",
+            "it's linked",
+            "I linked it",
+            "check again",
+            "check the code",
+            "okay it's done"
+          ]
+        },
+        {
+          "name": "SelectServerIntent",
+          "slots": [
+            { "name": "serverName", "type": "AMAZON.SearchQuery" },
+            { "name": "serverNumber", "type": "AMAZON.NUMBER" }
+          ],
+          "samples": [
+            "use {serverName}",
+            "use the server {serverName}",
+            "pick {serverName}",
+            "choose {serverName}",
+            "connect to {serverName}",
+            "number {serverNumber}",
+            "server {serverNumber}",
+            "server number {serverNumber}",
+            "the {serverNumber}",
+            "{serverNumber}"
+          ]
+        },
+        {
+          "name": "SwitchServerIntent",
+          "slots": [],
+          "samples": [
+            "switch server",
+            "switch servers",
+            "change server",
+            "change plex server",
+            "use a different server",
+            "pick a different server"
+          ]
+        },
+        {
+          "name": "LinkStatusIntent",
+          "slots": [],
+          "samples": [
+            "which server am I using",
+            "what server am I using",
+            "what server am I connected to",
+            "which server is this",
+            "who am I signed in as",
+            "which account am I using",
+            "am I linked",
+            "is plex linked",
+            "connection status"
+          ]
+        },
+        {
+          "name": "UnlinkIntent",
+          "slots": [],
+          "samples": [
+            "unlink plex",
+            "unlink my plex account",
+            "unlink my account",
+            "sign out of plex",
+            "sign out",
+            "log out of plex",
+            "disconnect plex",
+            "forget my plex account"
+          ]
+        }
+      ],
+      "types": []
+    },
+    "dialog": {
+      "intents": [
+        {
+          "name": "UnlinkIntent",
+          "confirmationRequired": true,
+          "prompts": { "confirmation": "Confirm.Intent.Unlink" },
+          "slots": []
+        }
+      ],
+      "delegationStrategy": "SKILL_RESPONSE"
+    },
+    "prompts": [
+      {
+        "id": "Confirm.Intent.Unlink",
+        "variations": [
+          { "type": "PlainText", "value": "This removes your Plex sign-in from the skill. Are you sure?" }
+        ]
+      }
+    ]
+  }
+}

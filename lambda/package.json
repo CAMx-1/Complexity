@@ -1,0 +1,19 @@
+{
+  "name": "complexity-lambda",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Alexa skill backend for Complexity (Alexa-hosted)",
+  "main": "index.js",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test \"test/**/*.test.js\""
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "3.1152.0",
+    "@aws-sdk/lib-dynamodb": "3.1152.0",
+    "ask-sdk-core": "2.14.0",
+    "ask-sdk-model": "1.86.0"
+  }
+}

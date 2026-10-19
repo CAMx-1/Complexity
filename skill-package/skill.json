@@ -1,0 +1,41 @@
+{
+  "manifest": {
+    "publishingInformation": {
+      "locales": {
+        "en-US": {
+          "name": "Complexity",
+          "summary": "Watch your Plex library on Echo Show.",
+          "description": "Complexity plays movies and TV from your own Plex Media Server on Echo Show devices. Link your Plex account with a short code at plex.tv/link; no password is ever shared with the skill. Not affiliated with Plex, Inc.",
+          "examplePhrases": [
+            "Alexa, open complexity",
+            "Alexa, ask complexity which server am I using",
+            "Alexa, ask complexity to switch server"
+          ],
+          "keywords": ["plex", "video", "movies", "tv"]
+        }
+      },
+      "isAvailableWorldwide": false,
+      "distributionCountries": ["US"],
+      "testingInstructions": "Requires a Plex account with a Plex Media Server that has Remote Access enabled.",
+      "category": "VIDEO"
+    },
+    "apis": {
+      "custom": {
+        "interfaces": [
+          { "type": "ALEXA_PRESENTATION_APL", "supportedViewports": [
+            { "mode": "HUB", "shape": "RECTANGLE", "minWidth": 960, "maxWidth": 2560, "minHeight": 480, "maxHeight": 1600 }
+          ] }
+        ]
+      }
+    },
+    "privacyAndCompliance": {
+      "allowsPurchases": false,
+      "usesPersonalInfo": false,
+      "isChildDirected": false,
+      "isExportCompliant": true,
+      "containsAds": false,
+      "locales": { "en-US": {} }
+    }
+  },
+  "manifestVersion": "1.0"
+}
