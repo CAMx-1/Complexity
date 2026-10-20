@@ -4,12 +4,13 @@
 //
 // UserEvents:
 //   ['home', 'play', ratingKey]       tap a Continue Watching tile
+//   ['show', 'seasons', showKey]      "Episodes ›" under an episode tile
 //   ['home', 'servers']               open the server picker
 //   ['home', 'help']                  spoken help
 //   ['server', 'select', machineId]   pick a server
 
 const { APL_VERSION } = require('./link');
-const { BG, ACCENT, graphics, logo, button, posterTile } = require('./ui');
+const { BG, ACCENT, graphics, logo, button, posterTileWithEpisodes } = require('./ui');
 
 const TOKEN = { home: 'home', servers: 'servers' };
 
@@ -55,10 +56,13 @@ function homeDocument({ serverName, username, multipleServers = false, onDeck = 
       type: 'Sequence',
       scrollDirection: 'horizontal',
       width: '100vw',
-      height: '46vw',
+      height: '50vw',
       paddingLeft: '5vw',
       data: onDeck,
-      items: [posterTile({ image: '${data.image}', title: '${data.title}', caption: '${data.caption}', args: ['home', 'play', '${data.ratingKey}'] })],
+      items: [posterTileWithEpisodes({
+        image: '${data.image}', title: '${data.title}', caption: '${data.caption}', args: ['home', 'play', '${data.ratingKey}'],
+        episodesArgs: ['show', 'seasons', '${data.showKey}'], episodesWhen: "${data.showKey ? 'normal' : 'invisible'}",
+      })],
     },
   ] : [
     { type: 'Text', text: 'Nothing in progress. Ask for any movie or show on your server.', fontSize: '3.2vh', color: '#9aa1b2', paddingLeft: '5vw', paddingTop: '5vh' },

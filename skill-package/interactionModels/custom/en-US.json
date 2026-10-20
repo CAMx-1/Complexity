@@ -150,8 +150,7 @@
             "watch {title}",
             "put on {title}",
             "I want to watch {title}",
-            "let's watch {title}",
-            "show me {title}"
+            "let's watch {title}"
           ]
         },
         {
@@ -290,6 +289,36 @@
             "exit the video",
             "stop watching and go back",
             "close the video"
+          ]
+        },
+        {
+          "name": "ShowEpisodesIntent",
+          "slots": [
+            {
+              "name": "show",
+              "type": "SHOW_TITLE"
+            },
+            {
+              "name": "season",
+              "type": "AMAZON.NUMBER"
+            }
+          ],
+          "samples": [
+            "show episodes of {show}",
+            "show me episodes of {show}",
+            "show me the episodes of {show}",
+            "list episodes of {show}",
+            "episodes of {show}",
+            "show the seasons of {show}",
+            "show me the seasons of {show}",
+            "browse {show}",
+            "show me {show}",
+            "open {show}",
+            "show season {season} of {show}",
+            "show me season {season} of {show}",
+            "episodes in season {season} of {show}",
+            "list season {season} of {show}",
+            "open season {season} of {show}"
           ]
         }
       ],

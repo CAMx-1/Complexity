@@ -128,6 +128,21 @@ function fakePlex({ servers = [], reachable = new Set(), username = 'cam', libra
     }
     const leaves = u.pathname.match(/^\/library\/metadata\/(\w+)\/allLeaves$/);
     if (leaves) return json(200, { MediaContainer: { Metadata: lib.items.filter((i) => i.type === 'episode' && i.grandparentRatingKey === leaves[1]) } });
+    // Show -> seasons (synthesised from episodes); season "<show>-s<n>" -> its episodes.
+    const kids = u.pathname.match(/^\/library\/metadata\/([\w-]+)\/children$/);
+    if (kids) {
+      const key = kids[1];
+      const sm = key.match(/^(\w+)-s(\d+)$/);
+      if (sm) return json(200, { MediaContainer: { Metadata: lib.items.filter((i) => i.type === 'episode' && i.grandparentRatingKey === sm[1] && String(i.parentIndex) === sm[2]) } });
+      const eps = lib.items.filter((i) => i.type === 'episode' && i.grandparentRatingKey === key);
+      const idx = [...new Set(eps.map((e) => e.parentIndex))];
+      return json(200, { MediaContainer: { Metadata: idx.map((n) => ({
+        ratingKey: `${key}-s${n}`, type: 'season', index: n, title: n ? `Season ${n}` : 'Specials',
+        leafCount: eps.filter((e) => e.parentIndex === n).length,
+        viewedLeafCount: eps.filter((e) => e.parentIndex === n && e.viewCount > 0).length,
+        thumb: `/library/metadata/${key}-s${n}/thumb/1`,
+      })) } });
+    }
     const one = u.pathname.match(/^\/library\/metadata\/(\w+)$/);
     if (one) return json(200, { MediaContainer: { Metadata: lib.items.filter((i) => i.ratingKey === one[1]) } });
     if (u.pathname === '/library/onDeck') return json(200, { MediaContainer: { Metadata: lib.onDeck } });

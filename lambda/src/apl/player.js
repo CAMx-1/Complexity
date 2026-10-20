@@ -2,7 +2,7 @@
 // Full-screen APL video player for Echo Show.
 //
 // Tap the video to pause and show the controls: ‹ Back (to the home screen),
-// « 10s, Play, 30s », and Next episode › for episodes.
+// « 10s, Play, 30s », and for episodes Next episode › and Episodes.
 //
 // Events sent to the skill (Alexa.Presentation.APL.UserEvent arguments):
 //   ['nav', 'home']                                Back button
@@ -46,7 +46,7 @@ const button = (label, commands) => ({
 /**
  * @param {{ url: string, title: string, subtitle?: string, offsetMs?: number }} p
  */
-function playerDocument({ url, title, subtitle = '', offsetMs = 0, ratingKey = '', hasNext = false }) {
+function playerDocument({ url, title, subtitle = '', offsetMs = 0, ratingKey = '', hasNext = false, showKey = '' }) {
   const send = (...args) => ({ type: 'SendEvent', arguments: ['video', ...args, String(ratingKey)] });
   return {
     type: 'APL',
@@ -132,6 +132,8 @@ function playerDocument({ url, title, subtitle = '', offsetMs = 0, ratingKey = '
                   button('30s »', [media('seek', { value: 30000 })]),
                   // Episodes: skip to the next one (saves this position first).
                   ...(hasNext ? [button('Next episode ›', [send('next', '${pos}')])] : []),
+                  // Episodes: browse the show's seasons (saves this position first).
+                  ...(showKey ? [button('Episodes', [{ type: 'SendEvent', arguments: ['show', 'seasons', String(showKey)] }])] : []),
                 ],
               },
             ],

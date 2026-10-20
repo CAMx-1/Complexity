@@ -38,8 +38,8 @@ function button(label, args, { primary = false, id } = {}) {
   };
 }
 
-/** Poster tile with a caption; tap sends `args`. */
-function posterTile({ image, title, caption = '', args, progress }) {
+/** Poster tile with a caption; tap sends `args`. `episodesArgs` adds an "Episodes ›" link below. */
+function posterTile({ image, title, caption = '', args, progress, episodesArgs, episodesWhen }) {
   return {
     type: 'TouchWrapper',
     onPress: [{ type: 'SendEvent', arguments: args }],
@@ -62,11 +62,33 @@ function posterTile({ image, title, caption = '', args, progress }) {
   };
 }
 
-/** "‹ Back" pill: saves the position, stops the stream, returns to the home screen. */
-function backButton() {
+/** Tile plus an optional "Episodes ›" link (shown when `when` is true). */
+function posterTileWithEpisodes(opts) {
+  const { episodesArgs, episodesWhen } = opts;
+  return {
+    type: 'Container',
+    width: '17vw',
+    marginRight: '2vw',
+    items: [
+      { ...posterTile(opts), item: { ...posterTile(opts).item, marginRight: 0 } },
+      {
+        type: 'TouchWrapper',
+        display: episodesWhen,
+        onPress: [{ type: 'SendEvent', arguments: episodesArgs }],
+        item: { type: 'Text', text: 'Episodes ›', fontSize: '2.8vh', fontWeight: 'bold', color: ACCENT, paddingTop: '0.8vh', paddingBottom: '0.8vh' },
+      },
+    ],
+  };
+}
+
+/**
+ * "‹ Back" pill. Default: back to the home screen (saving and stopping any
+ * stream). `args` sends a different UserEvent, e.g. back to the season list.
+ */
+function backButton(args = ['nav', 'home']) {
   return {
     type: 'TouchWrapper',
-    onPress: [{ type: 'SendEvent', arguments: ['nav', 'home'] }],
+    onPress: [{ type: 'SendEvent', arguments: args }],
     item: {
       type: 'Frame', backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: '5vh', borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)',
       paddingLeft: '2.4vw', paddingRight: '2.6vw', paddingTop: '1.4vh', paddingBottom: '1.4vh',
@@ -75,4 +97,4 @@ function backButton() {
   };
 }
 
-module.exports = { BG, ACCENT, LOGO, graphics, logo, button, posterTile, backButton };
+module.exports = { BG, ACCENT, LOGO, graphics, logo, button, posterTile, posterTileWithEpisodes, backButton };

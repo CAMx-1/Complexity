@@ -88,6 +88,31 @@ async function followingEpisode(fetchImpl, device, server, item) {
   return i >= 0 && i + 1 < eps.length ? eps[i + 1] : null;
 }
 
+/** Seasons of a show, Specials (season 0) last. Shape checked on PMS 1.42. */
+async function seasonsOf(fetchImpl, device, server, showKey) {
+  const list = meta(await api(fetchImpl, device, server, `/library/metadata/${encodeURIComponent(showKey)}/children`))
+    .filter((m) => m.type === 'season')
+    .map((m) => ({
+      ratingKey: String(m.ratingKey),
+      index: Number(m.index) || 0,
+      title: m.title || (Number(m.index) ? `Season ${m.index}` : 'Specials'),
+      episodes: m.leafCount || 0,
+      watched: m.viewedLeafCount || 0,
+      thumb: m.thumb,
+      showTitle: m.parentTitle,
+      art: m.art,
+    }));
+  return list.sort((a, b) => (a.index === 0) - (b.index === 0) || a.index - b.index);
+}
+
+/** Episodes of one season, in order. */
+async function seasonEpisodes(fetchImpl, device, server, seasonKey) {
+  return meta(await api(fetchImpl, device, server, `/library/metadata/${encodeURIComponent(seasonKey)}/children`))
+    .filter((m) => m.type === 'episode')
+    .map((m) => ({ ...slim(m), episodeThumb: m.thumb, airDate: m.originallyAvailableAt }))
+    .sort((a, b) => a.episode - b.episode);
+}
+
 async function onDeck(fetchImpl, device, server, { limit = 10 } = {}) {
   return meta(await api(fetchImpl, device, server, `/library/onDeck?X-Plex-Container-Start=0&X-Plex-Container-Size=${limit}`)).map(slim);
 }
@@ -97,4 +122,4 @@ async function item(fetchImpl, device, server, ratingKey) {
   return m ? slim(m) : null;
 }
 
-module.exports = { search, episodesOf, pickNextEpisode, nextEpisode, episodeAt, followingEpisode, onDeck, item, describe, slim, norm };
+module.exports = { seasonsOf, seasonEpisodes, search, episodesOf, pickNextEpisode, nextEpisode, episodeAt, followingEpisode, onDeck, item, describe, slim, norm };

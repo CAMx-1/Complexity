@@ -50,6 +50,7 @@ async function renderHome(h) {
         caption: i.type === 'episode' ? `S${i.season} · E${i.episode}` : (i.year ? String(i.year) : ''),
         image: (token && pb.imageUrl(base, i.thumb, token, { width: 340, height: 510 })) || '',
         progress: i.durationMs ? i.viewOffsetMs / i.durationMs : 0,
+        showKey: i.type === 'episode' && i.showKey ? i.showKey : '',
       }));
     }
   } catch { onDeck = []; }
@@ -361,9 +362,11 @@ const ErrorHandler = {
 };
 
 const { videoHandlers } = require('./videoHandlers');
+const { showHandlers } = require('./showHandlers');
 
 const requestHandlers = [
   ...videoHandlers, // first: playback-specific Stop/SessionEnded take precedence
+  ...showHandlers,
   LaunchHandler, ShowHomeIntentHandler, LinkAccountIntentHandler, CheckLinkIntentHandler, PollLinkEventHandler,
   SelectServerIntentHandler, SwitchServerIntentHandler, LinkStatusIntentHandler, UnlinkIntentHandler,
   ServerTapHandler, HomeTapHandler,

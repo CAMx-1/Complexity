@@ -81,7 +81,7 @@ function renderPlayerNow(h) {
   h.responseBuilder.addDirective({
     type: 'Alexa.Presentation.APL.RenderDocument',
     token: player.TOKEN,
-    document: player.playerDocument({ url: p.url, title: titleFor(item), subtitle: subtitleFor(item), offsetMs: p.startMs, ratingKey: item.ratingKey, hasNext: item.type === 'episode' }),
+    document: player.playerDocument({ url: p.url, title: titleFor(item), subtitle: subtitleFor(item), offsetMs: p.startMs, ratingKey: item.ratingKey, hasNext: item.type === 'episode', showKey: item.type === 'episode' ? item.showKey : '' }),
   });
   return h.responseBuilder.getResponse();
 }
@@ -305,4 +305,4 @@ const videoHandlers = [
   PlayVideoIntentHandler, PlayEpisodeIntentHandler, ContinueWatchingIntentHandler, NothingPlayingHandler,
 ];
 
-module.exports = { videoHandlers, durationMs };
+module.exports = { videoHandlers, durationMs, renderLoading };
