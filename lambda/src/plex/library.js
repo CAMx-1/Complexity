@@ -3,6 +3,7 @@
 // server access token). Response shapes checked against PMS 1.42.
 
 const { plexRequest } = require('./client');
+const { aplText } = require('../safe');
 
 const api = (fetchImpl, device, server, path) =>
   plexRequest(fetchImpl, `${server.apiUri}${path}`, { clientId: device.clientId, token: server.accessToken, timeoutMs: 8000 });
@@ -17,13 +18,13 @@ function slim(m) {
   return {
     ratingKey: String(m.ratingKey),
     type: m.type,
-    title: m.title,
+    title: aplText(m.title),
     year: m.year,
-    showTitle: m.grandparentTitle,
+    showTitle: aplText(m.grandparentTitle),
     showKey: m.grandparentRatingKey ? String(m.grandparentRatingKey) : undefined,
     season: m.parentIndex,
     episode: m.index,
-    summary: m.summary,
+    summary: aplText(m.summary),
     durationMs: m.duration,
     viewOffsetMs: m.viewOffset || 0,
     viewCount: m.viewCount || 0,
@@ -95,11 +96,11 @@ async function seasonsOf(fetchImpl, device, server, showKey) {
     .map((m) => ({
       ratingKey: String(m.ratingKey),
       index: Number(m.index) || 0,
-      title: m.title || (Number(m.index) ? `Season ${m.index}` : 'Specials'),
+      title: aplText(m.title) || (Number(m.index) ? `Season ${m.index}` : 'Specials'),
       episodes: m.leafCount || 0,
       watched: m.viewedLeafCount || 0,
       thumb: m.thumb,
-      showTitle: m.parentTitle,
+      showTitle: aplText(m.parentTitle),
       art: m.art,
     }));
   return list.sort((a, b) => (a.index === 0) - (b.index === 0) || a.index - b.index);

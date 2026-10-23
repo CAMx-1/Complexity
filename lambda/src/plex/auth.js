@@ -15,6 +15,7 @@ const USE_JWT = false;
 
 const { PLEX_TV, plexRequest } = require('./client');
 const { signDeviceJwt, decodeJwtPayload } = require('./deviceKey');
+const { aplText } = require('../safe');
 
 // Scopes requested when exchanging a nonce for a fresh JWT. Taken from Plex's
 // developer forum examples; adjust if plex.tv rejects or narrows them.
@@ -76,7 +77,7 @@ async function refreshToken(fetchImpl, device, now = Date.now()) {
 /** Basic account info for confirmation ("Linked as cameron"). */
 async function getAccount(fetchImpl, device, tokenValue) {
   const u = await plexRequest(fetchImpl, `${PLEX_TV}/api/v2/user`, { clientId: device.clientId, token: tokenValue });
-  return { username: u.username || u.title || u.friendlyName || 'your account', uuid: u.uuid };
+  return { username: aplText(u.username || u.title || u.friendlyName || 'your account'), uuid: u.uuid };
 }
 
 module.exports = { USE_JWT, createPin, checkPin, describeToken, needsRefresh, refreshToken, getAccount, TOKEN_SCOPE };

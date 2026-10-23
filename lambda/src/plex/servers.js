@@ -10,6 +10,7 @@
 //     the WAN round trip. M0 checks this on the device.
 
 const { PLEX_TV, plexRequest } = require('./client');
+const { aplText, isSafeServerUri } = require('../safe');
 
 /** List servers the account can use (owned first, then shared). */
 async function listServers(fetchImpl, device, tokenValue) {
@@ -20,11 +21,12 @@ async function listServers(fetchImpl, device, tokenValue) {
   return (Array.isArray(resources) ? resources : [])
     .filter((r) => String(r.provides || '').split(',').includes('server'))
     .map((r) => ({
-      name: r.name,
+      name: aplText(r.name),
       clientIdentifier: r.clientIdentifier,
       owned: !!r.owned,
       accessToken: r.accessToken,
-      connections: (r.connections || []).filter((c) => c.protocol === 'https' && c.uri),
+      // HTTPS only, and never private/loopback/metadata IP literals (owners control these URIs).
+      connections: (r.connections || []).filter((c) => c.protocol === 'https' && c.uri && isSafeServerUri(c.uri)),
     }))
     .sort((a, b) => Number(b.owned) - Number(a.owned) || a.name.localeCompare(b.name));
 }

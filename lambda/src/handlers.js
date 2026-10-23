@@ -9,6 +9,7 @@ const apl = require('./apl/link');
 const homeApl = require('./apl/home');
 const lib = require('./plex/library');
 const pb = require('./plex/playback');
+const { redact } = require('./safe');
 
 const { STATUS } = link;
 const LINK_URL = 'plex.tv/link';
@@ -351,9 +352,9 @@ const ExceptionEncounteredHandler = {
 const ErrorHandler = {
   canHandle: () => true,
   handle(h, error) {
-    h.attributesManager.getRequestAttributes().lastError = `${(error && error.name) || 'Error'}: ${String((error && error.message) || '').slice(0, 200)}`;
-    // Never log tokens: only the message and status.
-    console.error('handler error:', error && error.message, error && error.status);
+    h.attributesManager.getRequestAttributes().lastError = `${(error && error.name) || 'Error'}: ${redact(error && error.message)}`;
+    // Never log tokens, URLs or addresses: only the redacted message and status.
+    console.error('handler error:', redact(error && error.message), error && error.status);
     return h.responseBuilder
       .speak(`Sorry, I couldn't talk to Plex just now. ${reasonFor(error)} Please try again in a moment.`)
       .withShouldEndSession(true)
